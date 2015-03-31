@@ -34,6 +34,7 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
                                           new_buf_len: *mut c_int)
         -> *mut c_void {
     println!("hello rust");
+    println!("input len: {}", buf_len);
     let ptr;
     let mut output_len: size_t = 0;
     let input_len: size_t = buf_len as size_t;
@@ -44,6 +45,8 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
                                            TINFL_FLAG_PARSE_ZLIB_HEADER);
         *new_buf_len = output_len as c_int;
     }
+    println!("pointer: {:?}", ptr);
+    println!("new buf len: {}", output_len);
     return ptr;
 }
 
