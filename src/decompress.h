@@ -4,6 +4,7 @@
 #include "config.h"
 #include "log.h"
 #include "options.h"
+#include "rzlib.h"
 
 typedef enum {
     AG_NO_COMPRESSION,
