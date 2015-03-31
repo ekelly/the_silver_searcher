@@ -13,6 +13,13 @@ then
     AC_SEARCH_OPTS="-I /usr/local/share/aclocal"
 fi
 
+# build our rust
+cd rust-zlib
+cargo build
+cd -
+cp rust-zlib/target/librzlib-* lib/
+mv lib/librzlib-* lib/librzlib.a
+
 aclocal $AC_SEARCH_OPTS && \
 autoconf && \
 autoheader && \

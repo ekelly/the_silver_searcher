@@ -33,7 +33,7 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
                                           _: *const c_char,
                                           new_buf_len: *mut c_int)
         -> *mut c_void {
-    print!("hello rust");
+    println!("hello rust");
     let ptr;
     let mut output_len: size_t = 0;
     let input_len: size_t = buf_len as size_t;
