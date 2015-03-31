@@ -29,3 +29,8 @@ tests/*.err
 tests/big/*.err
 tests/big/big_file.txt
 the_silver_searcher.spec
+
+# added by clowns
+**/target
+**/target/*
+
