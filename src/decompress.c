@@ -1,5 +1,6 @@
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
 
 #include "decompress.h"
 
@@ -25,7 +26,10 @@ const uint8_t LZMA_HEADER_SOMETIMES[3] = { 0x5D, 0x00, 0x00 };
  *    Version 1.4  11 December 2005  Mark Adler 
  */
 static void *decompress_zlib(const void *buf, const int buf_len, const char *dir_full_path, int *new_buf_len) {
-  return decompress_zlib_to_heap(buf, buf_len, dir_full_path, new_buf_len);
+  // TODO fix this back to how it was, remove stdio import
+  void *ret = decompress_zlib_to_heap(buf, buf_len, dir_full_path, new_buf_len);
+  printf("%.*s\n", *new_buf_len, ret);
+  return ret;
 }
 static void *decompress_zlib2(const void *buf, const int buf_len,
                              const char *dir_full_path, int *new_buf_len) {

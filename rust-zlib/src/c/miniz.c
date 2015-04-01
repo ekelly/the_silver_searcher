@@ -789,6 +789,7 @@ void *tinfl_decompress_mem_to_heap(const void *pSrc_buf, size_t src_buf_len, siz
     if ((status < 0) || (status == TINFL_STATUS_NEEDS_MORE_INPUT))
     {
       MZ_FREE(pBuf); *pOut_len = 0; return NULL;
+      return NULL;
     }
     src_buf_ofs += src_buf_size;
     *pOut_len += dst_buf_size;
@@ -797,7 +798,7 @@ void *tinfl_decompress_mem_to_heap(const void *pSrc_buf, size_t src_buf_len, siz
     pNew_buf = MZ_REALLOC(pBuf, new_out_buf_capacity);
     if (!pNew_buf)
     {
-      MZ_FREE(pBuf); *pOut_len = 0; return NULL;
+      MZ_FREE(pBuf); *pOut_len = 2; return NULL;
     }
     pBuf = pNew_buf; out_buf_capacity = new_out_buf_capacity;
   }
