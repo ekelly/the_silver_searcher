@@ -8,6 +8,7 @@ use std::mem;
 use self::core::raw::Slice as RawSlice;
 use self::core::num::Int;
 use std::ptr;
+use std::fmt;
 
 const DEFAULT_CVEC_CAPACITY: usize = 8;
 
@@ -166,5 +167,11 @@ impl<T> AsSlice<T> for CVec<T> {
                 len: self.len
             })
         }
+    }
+}
+
+impl<T: fmt::Show> fmt::Show for CVec<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Show::fmt(self.as_slice(), f)
     }
 }
