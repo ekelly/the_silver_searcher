@@ -5,7 +5,6 @@
 
 void * decompress_zlib_to_heap(const void * buf,
     int buf_len,
-    const char * dir_full_path,
     int * new_buf_len);
 
 
