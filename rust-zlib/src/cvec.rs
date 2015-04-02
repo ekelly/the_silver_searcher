@@ -1,4 +1,3 @@
-
 extern crate libc;
 extern crate core;
 
@@ -12,6 +11,8 @@ use std::ptr;
 
 const DEFAULT_CVEC_CAPACITY: usize = 8;
 
+pub type Buf = CVec<u8>;
+
 macro_rules! try_opt {
     ($expr:expr) => (match $expr {
         Option::Some(v) => v,
@@ -24,10 +25,6 @@ macro_rules! try_opt {
 // this is an analogue of a Vec, but uses C-style allocation and reallocation
 // so we can safely construct it from a C pointer, or return it as a C pointer.
 // This cannot safely be used on zero-sized types, and will panic if you try.
-//
-// Because this might wrap a buffer passed from C that will be freed by C,
-// it does NOT automatically deallocate memory when it goes out of scope.
-// You must do this manually with CVec::drop()
 
 pub struct CVec<T> {
     ptr: *mut T,
@@ -42,6 +39,10 @@ impl<T> CVec<T> {
         if mem::size_of::<T>() == 0 {
             panic!("tried to use a CVec with a zero-size type");
         }
+    }
+
+    pub fn new() -> Option<CVec<T>> {
+        CVec::<T>::with_capacity(DEFAULT_CVEC_CAPACITY)
     }
 
     // Constructs a new CVec with given capacity
@@ -82,24 +83,34 @@ impl<T> CVec<T> {
         }
     }
 
+    // Converts this CVec to a raw pointer. The CVec cannot be used after this
+    // is called. The raw pointer must be freed by the caller.
+
+    pub fn to_raw_buf(self) -> (*mut T, usize) {
+        let ret = (self.ptr, self.len);
+        unsafe { mem::forget(self); }
+        ret
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
 
     // doubles our capacity!
     // returns None if the allocation failed
+    // CVec cannot be used after allocation failure
     pub fn double_capacity(&mut self) -> Option<()> {
         assert!(self.mutable);
         let old_size = self.cap * mem::size_of::<T>();
         let size = old_size * 2;
         if old_size > size {
-            self.drop();
+            unsafe { mem::drop(self); }
             return None;
         }
         unsafe {
             let new_ptr = realloc(self.ptr as *mut c_void, size as size_t);
             if new_ptr.is_null() {
-                self.drop();
+                mem::drop(self);
                 return None;
             }
             self.ptr = new_ptr as *mut T;
@@ -109,6 +120,7 @@ impl<T> CVec<T> {
     }
 
     // returns None if we had to reallocate and it failed
+    // CVec cannot be used after allocation failure
     pub fn push(&mut self, value: T) -> Option<()> {
         assert!(self.mutable);
         if self.len == self.cap {
@@ -124,6 +136,7 @@ impl<T> CVec<T> {
     }
 
     pub fn pop(&mut self) -> Option<T> {
+        assert!(self.mutable);
         if self.len == 0 {
             None
         } else {
@@ -134,13 +147,14 @@ impl<T> CVec<T> {
         }
     }
 
+}
 
-    fn drop(&self) {
-        unsafe { free(self.ptr as *mut c_void); }
-    }
-
-    pub fn free(self) {
-        drop(self);
+#[unsafe_destructor]
+impl<T> Drop for CVec<T> {
+    fn drop(&mut self) {
+        if self.mutable {
+            unsafe { free(self.ptr as *mut c_void); }
+        }
     }
 }
 
