@@ -27,8 +27,14 @@ const uint8_t LZMA_HEADER_SOMETIMES[3] = { 0x5D, 0x00, 0x00 };
  */
 static void *decompress_zlib(const void *buf, const int buf_len, const char *dir_full_path, int *new_buf_len) {
   // TODO fix this back to how it was, remove stdio import
+  printf("new_buf_len: %d\n", *new_buf_len);
+  printf("new_buf_len address: %p\n", new_buf_len);
+  // Output: new_buf_len address: 0x7fff586674f4
+  const int* new_len;
   void *ret = decompress_zlib_to_heap(buf, buf_len, dir_full_path, new_buf_len);
+  printf("Buf len: %d\n", *new_buf_len);
   printf("%.*s\n", *new_buf_len, ret);
+  //printf("%.*s\n", 562, ret);
   return ret;
 }
 static void *decompress_zlib2(const void *buf, const int buf_len,

@@ -17,6 +17,7 @@ fi
 cd rust-zlib
 cargo build
 cd -
+cp rust-zlib/src/rzlib.h src/
 cp rust-zlib/target/librzlib-* lib/
 mv lib/librzlib-* lib/librzlib.a
 

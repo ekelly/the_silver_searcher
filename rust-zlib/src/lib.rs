@@ -146,6 +146,8 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
                                           decompressed_len: *mut c_int)
         -> *mut c_void
 {
+    println!("Address received: {:p}", decompressed_len);
+    // Output: Address received: 0x7fcfe3404e30
     return decompress(buf as *const c_uchar, buf_len as c_uint, decompressed_len);
 }
 
