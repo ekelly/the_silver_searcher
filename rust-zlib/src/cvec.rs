@@ -39,29 +39,29 @@ impl<T> CVec<T> {
         }
     }
 
-    pub fn new() -> CVec<T> {
+    pub fn new() -> Option<CVec<T>> {
         CVec::<T>::with_capacity(DEFAULT_CVEC_CAPACITY)
     }
 
     // Constructs a new CVec with given capacity
-    // panics if the allocation fails
-    pub fn with_capacity(capacity: usize) -> CVec<T> {
+    // returns None if the allocation fails
+    pub fn with_capacity(capacity: usize) -> Option<CVec<T>> {
         let capacity = if capacity > 0 { capacity } else { DEFAULT_CVEC_CAPACITY } ;
         CVec::<T>::check_type_size();
         let size = capacity.checked_mul(mem::size_of::<T>() as usize);
         if size.is_none() {
-            panic!("tried to create a zero-sized CVec");
+            return None;
         }
         let ptr = unsafe { malloc(size.unwrap() as size_t) } as *mut T;
         if ptr.is_null() {
-            panic!("Could not allocate memory for the CVec");
+            None
         } else {
-            CVec {
+            Some(CVec {
                 ptr: ptr,
                 len: 0,
                 cap: capacity,
                 mutable: true
-            }
+            })
         }
     }
 
@@ -253,7 +253,7 @@ mod cvec_tests {
     }
 
     fn setup() -> CVec<u8> {
-        let mut v: CVec<u8> = CVec::new();
+        let mut v: CVec<u8> = CVec::new().unwrap();
         add!(v, 1, 2, 3, 4, 5, 6, 7, 8, 9);
         v
     }
