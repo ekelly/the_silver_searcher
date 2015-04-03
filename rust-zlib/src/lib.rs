@@ -8,11 +8,13 @@ use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
 use libc::funcs::c95::stdlib::{malloc, realloc, free};
 use std::ptr::null;
 use cvec::{CVec, Buf};
+use header::GZHeader;
 
 #[macro_use]
 mod macros;
 mod cvec;
 mod gz;
+mod header;
 
 /////////////////////////////////////////////////////////////////////
 //                    Constants & Macros                           //
