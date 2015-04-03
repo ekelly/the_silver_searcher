@@ -1,6 +1,15 @@
+#[doc="
+
+    This is a slight modification of Vec from the standard library, but uses
+    C-style allocation and reallocation so we can safely construct it from a
+    C pointer, or return it as a C pointer. This cannot safely be used on
+    zero-sized types, and will panic if you try.
+"]
+
 extern crate libc;
 extern crate core;
 
+use std::ops::Index;
 use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
 use libc::funcs::c95::stdlib::{malloc, realloc, free};
 use std::vec::Vec;
@@ -14,9 +23,6 @@ const DEFAULT_CVEC_CAPACITY: usize = 8;
 
 pub type Buf = CVec<u8>;
 
-// this is an analogue of a Vec, but uses C-style allocation and reallocation
-// so we can safely construct it from a C pointer, or return it as a C pointer.
-// This cannot safely be used on zero-sized types, and will panic if you try.
 
 pub struct CVec<T> {
     ptr: *mut T,
@@ -33,29 +39,29 @@ impl<T> CVec<T> {
         }
     }
 
-    pub fn new() -> Option<CVec<T>> {
+    pub fn new() -> CVec<T> {
         CVec::<T>::with_capacity(DEFAULT_CVEC_CAPACITY)
     }
 
     // Constructs a new CVec with given capacity
-    // returns None if the allocation fails
-    pub fn with_capacity(capacity: usize) -> Option<CVec<T>> {
+    // panics if the allocation fails
+    pub fn with_capacity(capacity: usize) -> CVec<T> {
         let capacity = if capacity > 0 { capacity } else { DEFAULT_CVEC_CAPACITY } ;
         CVec::<T>::check_type_size();
         let size = capacity.checked_mul(mem::size_of::<T>() as usize);
         if size.is_none() {
-            return None;
+            panic!("tried to create a zero-sized CVec");
         }
         let ptr = unsafe { malloc(size.unwrap() as size_t) } as *mut T;
         if ptr.is_null() {
-            None
+            panic!("Could not allocate memory for the CVec");
         } else {
-            Some(CVec {
+            CVec {
                 ptr: ptr,
                 len: 0,
                 cap: capacity,
                 mutable: true
-            })
+            }
         }
     }
 
@@ -77,8 +83,7 @@ impl<T> CVec<T> {
 
     // Converts this CVec to a raw pointer. The CVec cannot be used after this
     // is called. The raw pointer must be freed by the caller.
-
-    pub fn to_raw_buf(self) -> (*mut T, usize) {
+    pub fn into_raw_buf(self) -> (*mut T, usize) {
         let ret = (self.ptr, self.len);
         unsafe { mem::forget(self); }
         ret
@@ -95,7 +100,7 @@ impl<T> CVec<T> {
         let old_size = self.cap * mem::size_of::<T>();
         let size = old_size * 2;
         if old_size > size {
-            unsafe { mem::drop(self); }
+            mem::drop(self);
             return None;
         }
         unsafe {
@@ -136,13 +141,40 @@ impl<T> CVec<T> {
         }
     }
 
-    pub unsafe fn get_raw_pointer_to_item(&self, index: usize) -> *const T{
+    unsafe fn get_unchecked(&self, index: usize) -> &T {
+        self.as_slice().get_unchecked(index)
+    }
+
+    pub fn get(&self, index: usize) -> Option<&T> {
+        if index < self.len {
+            Some(unsafe { self.get_unchecked(index) })
+        } else {
+            None
+        }
+    }
+
+    pub fn iter(&self) -> Iter<T> {
+        Iter::new(self)
+    }
+
+    pub unsafe fn get_raw_pointer_to_item(&self, index: usize) -> *const T {
         if index >= self.len {
             ptr::null::<T>()
         } else {
             self.as_slice().as_ptr().offset(index as isize)
         }
     }
+}
+
+impl<T> Index<usize> for CVec<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: &usize) -> &T {
+        assert!(*index < self.len);
+        unsafe { self.get_unchecked(*index) }
+    }
+
 }
 
 #[unsafe_destructor]
@@ -170,3 +202,110 @@ impl<T: fmt::Show> fmt::Show for CVec<T> {
         fmt::Show::fmt(self.as_slice(), f)
     }
 }
+
+/////////////////////////////////////////////////////////////////////
+//                            Iterator                             //
+/////////////////////////////////////////////////////////////////////
+
+#[derive(Copy, Clone)]
+pub struct Iter<'a, T: 'a> {
+    cvec: &'a CVec<T>,
+    index: usize,
+}
+
+impl<'a, T> Iter<'a, T> {
+    fn new(vec: &'a CVec<T>) -> Iter<'a, T> {
+        Iter {
+            cvec: vec,
+            index: 0,
+        }
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a T> {
+        let index = self.index;
+        self.index += 1;
+        self.cvec.get(index)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.cvec.len();
+        (len, Some(len))
+    }
+}
+
+
+#[cfg(test)]
+mod cvec_tests {
+    use super::CVec;
+
+    macro_rules! add {
+        ( $y:expr, $( $x:expr ),* ) => {{
+            $(
+                $y.push($x);
+            )*
+        }};
+    }
+
+    fn setup() -> CVec<u8> {
+        let mut v: CVec<u8> = CVec::new();
+        add!(v, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+        v
+    }
+
+    #[test]
+    fn test_iterator() {
+        let mut expect = 1;
+        for &el in setup().iter() {
+            assert_eq!(expect, el);
+            expect += 1;
+        }
+    }
+
+    #[test]
+    fn test_pop() {
+        let mut v = setup();
+        let mut expect = 9;
+        while let Some(el) = v.pop() {
+            assert_eq!(el, expect);
+            expect -= 1;
+        }
+    }
+
+    #[test]
+    fn test_push() {
+        let mut v = setup();
+        v.push(5);
+        assert_eq!(v.pop().unwrap(), 5);
+    }
+
+    #[test]
+    fn test_index() {
+        let mut v = setup();
+        for i in 0 .. v.len() {
+            assert_eq!(v[i], (i + 1) as u8);
+        }
+        v.push(42);
+        assert_eq!(v[v.len() - 1], 42);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

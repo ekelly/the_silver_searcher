@@ -36,6 +36,6 @@ pub fn decompress(buffer: Buf) -> Option<Buf> {
     let crc = get_crc(&buffer);
     println!("out_len: {}", out_len);
     println!("crc: {}", crc);
-    let out_buf = try_opt!(CVec::with_capacity(out_len));
+    let out_buf = CVec::with_capacity(out_len);
     Some(out_buf)
 }

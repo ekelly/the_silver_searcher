@@ -48,7 +48,7 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
     println!("{:?}", in_vec);
     let out_vec = try_bail!(gz::decompress(in_vec));
     unsafe {
-        let (out_ptr, out_size) = out_vec.to_raw_buf();
+        let (out_ptr, out_size) = out_vec.into_raw_buf();
         *decompressed_len = out_size as c_int;
         out_ptr as *mut c_void
     }
