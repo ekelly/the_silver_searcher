@@ -90,7 +90,6 @@ impl<T> CVec<T> {
 
     // doubles our capacity!
     // returns None if the allocation failed
-    // CVec cannot be used after allocation failure
     pub fn double_capacity(&mut self) -> Option<()> {
         assert!(self.mutable);
         let old_size = self.cap * mem::size_of::<T>();
@@ -102,7 +101,6 @@ impl<T> CVec<T> {
         unsafe {
             let new_ptr = realloc(self.ptr as *mut c_void, size as size_t);
             if new_ptr.is_null() {
-                mem::drop(self);
                 return None;
             }
             self.ptr = new_ptr as *mut T;
@@ -112,7 +110,6 @@ impl<T> CVec<T> {
     }
 
     // returns None if we had to reallocate and it failed
-    // CVec cannot be used after allocation failure
     pub fn push(&mut self, value: T) -> Option<()> {
         assert!(self.mutable);
         if self.len == self.cap {
