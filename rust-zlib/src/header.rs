@@ -78,14 +78,11 @@ mod parse_header_tests {
 
         let buffer = create_buf(HEADER_BYTES);
         let results = parse_header(&buffer).unwrap();
-        println!("parsed header");
         assert_eq!(results.compression_method, 8);
         assert_eq!(results.flags, 0);
         assert_eq!(results.mtime, 305419896);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
-
-        println!("Result: {:?}", results);
     }
 
     #[test]
