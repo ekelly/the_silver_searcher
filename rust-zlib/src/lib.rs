@@ -9,7 +9,10 @@ use libc::funcs::c95::stdlib::{malloc, realloc, free};
 use std::ptr::null;
 use cvec::{CVec, Buf};
 
+#[macro_use]
+mod macros;
 mod cvec;
+mod gz;
 
 /////////////////////////////////////////////////////////////////////
 //                    Constants & Macros                           //
@@ -21,20 +24,6 @@ const MAXDCODES: usize = 30;  // maximum number of distance codes
 const FIXLCODES: usize = 288; // number of fixed literal/length codes
 // maximum number of code lengths to read
 const MAXCODES:  usize = MAXLCODES + MAXDCODES;
-
-
-macro_rules! bail {
-    () => {
-        return null::<c_void>() as *mut c_void;
-    }
-}
-
-macro_rules! try_bail {
-    ($expr: expr) => (match $expr {
-        Option::Some(v) => v,
-        Option::None => { bail!() },
-    })
-}
 
 /////////////////////////////////////////////////////////////////////
 //                   Decompression functions                       //
@@ -49,9 +38,6 @@ macro_rules! try_bail {
 
 /// The main decompression function
 /// Assumption: The Vec given to this function is a gzipped buffer
-fn decompress(buffer: Buf) -> Option<Buf> {
-    CVec::new()
-}
 
 #[no_mangle]
 pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
@@ -60,7 +46,7 @@ pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
         -> *mut c_void {
     let in_vec = try_bail!(unsafe { CVec::from_raw_buf(buf as *const c_uchar, buf_len as usize)});
     println!("{:?}", in_vec);
-    let out_vec = try_bail!(decompress(in_vec));
+    let out_vec = try_bail!(gz::decompress(in_vec));
     unsafe {
         let (out_ptr, out_size) = out_vec.to_raw_buf();
         *decompressed_len = out_size as c_int;

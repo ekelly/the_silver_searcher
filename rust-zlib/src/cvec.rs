@@ -14,15 +14,6 @@ const DEFAULT_CVEC_CAPACITY: usize = 8;
 
 pub type Buf = CVec<u8>;
 
-macro_rules! try_opt {
-    ($expr:expr) => (match $expr {
-        Option::Some(v) => v,
-        Option::None => {
-            return Option::None;
-        }
-    })
-}
-
 // this is an analogue of a Vec, but uses C-style allocation and reallocation
 // so we can safely construct it from a C pointer, or return it as a C pointer.
 // This cannot safely be used on zero-sized types, and will panic if you try.
@@ -148,6 +139,13 @@ impl<T> CVec<T> {
         }
     }
 
+    pub unsafe fn get_raw_pointer_to_item(&self, index: usize) -> *const T{
+        if index >= self.len {
+            ptr::null::<T>()
+        } else {
+            self.as_slice().as_ptr().offset(index as isize)
+        }
+    }
 }
 
 #[unsafe_destructor]
