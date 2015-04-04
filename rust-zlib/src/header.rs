@@ -1,5 +1,6 @@
 use std::fmt::Show;
-use cvec::Buf;
+use cvec;
+use cvec::{Iter, Buf, CVec};
 
 /*
 Flags:
@@ -33,15 +34,10 @@ impl Flags {
     }
 }
 
-/*
- unsigned char id[ 2 ];
- unsigned char compression_method;
- unsigned char flags;
- unsigned char mtime[ 4 ];
- unsigned char extra_flags;
- unsigned char os;
- */
-
+/// GZHeader consists of the following fields.
+/// Optional fields are, naturally, Options in the GZHeader.
+/// Whether or not they exist depends on whether it's associated
+/// flag bit is set.
 #[derive(PartialEq, Show)]
 pub struct GZHeader {
     compression_method: u8,
@@ -57,7 +53,7 @@ pub struct GZHeader {
 
 /// Return a GZIP header structure representing the information
 /// contained in the beginning of the given Buf
-pub fn parse_header(buffer: &Buf) -> Option<GZHeader> {
+pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     let mut iter = buffer.iter();
 
     // Header fields
@@ -75,37 +71,15 @@ pub fn parse_header(buffer: &Buf) -> Option<GZHeader> {
         mtime = (*try_opt!(iter.next()) as u32) << 24;
         mtime += (*try_opt!(iter.next()) as u32) << 16;
         mtime += (*try_opt!(iter.next()) as u32) << 8;
-        mtime += (*try_opt!(iter.next()) as u32);
+        mtime += *try_opt!(iter.next()) as u32;
         extra_flags = *try_opt!(iter.next());
         os = *try_opt!(iter.next());
 
         // Optional stuff
-        let extra = if_opt!(flags.FEXTRA, {
-            let mut len: u16 = (*try_opt!(iter.next()) as u16) << 8;
-            len += (*try_opt!(iter.next()) as u16);
-            let mut data = Vec::with_capacity(len as usize);
-            for i in 0..(len as usize) {
-                let byte: u8 = *try_opt!(iter.next());
-                data.push(byte);
-            }
-            data
-        });
-        let name = match if_opt!(flags.FNAME, {
-            let mut name_bytes = Vec::with_capacity(512);
-            while let Some(&byte) = iter.next() {
-                name_bytes.push(byte);
-                if byte == 0x00 {
-                    break
-                }
-            }
-            match String::from_utf8(name_bytes) {
-                Ok(result) => Some(result),
-                Err(..) => None
-            }
-        }) {
-            Some(n) => n,
-            None => None
-        };
+        let extra = get_extra(&flags, &mut iter);
+        let name = get_string(flags.FNAME, &mut iter);
+        let comment = get_string(flags.FCOMMENT, &mut iter);
+        let crc = get_crc(&flags, &mut iter);
 
         Some(GZHeader {
             compression_method: comp_method,
@@ -115,22 +89,62 @@ pub fn parse_header(buffer: &Buf) -> Option<GZHeader> {
             os: os,
             extra: extra,
             fname: name,
-            comment: None,
-            crc: None
+            comment: comment,
+            crc: crc
         })
     } else {
         None
     }
 }
 
+fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<Vec<u8>> {
+    if_opt!(flags.FEXTRA, {
+        let mut len: u16 = (*try_opt!(iter.next()) as u16) << 8;
+        len += (*try_opt!(iter.next()) as u16);
+        let mut data = Vec::with_capacity(len as usize);
+        for i in 0..(len as usize) {
+            let byte: u8 = *try_opt!(iter.next());
+            data.push(byte);
+        }
+        data
+    })
+}
+
+fn get_string(flag: bool, iter: &mut cvec::Iter<u8>) -> Option<String> {
+    match if_opt!(flag, {
+        let mut str_bytes = Vec::with_capacity(512);
+        while let Some(&byte) = iter.next() {
+            if byte == 0x00 {
+                break
+            }
+            str_bytes.push(byte);
+        }
+        match String::from_utf8(str_bytes) {
+            Ok(result) => Some(result),
+            Err(..) => None
+        }
+    }) {
+        Some(n) => n,
+        None => None
+    }
+}
+
+fn get_crc(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<u16> {
+    if_opt!(flags.FHCRC, {
+        let mut crc: u16 = (*try_opt!(iter.next()) as u16) << 8;
+        crc += *try_opt!(iter.next()) as u16;
+        crc
+    })
+}
+
 #[cfg(test)]
 mod parse_header_tests {
     use super::{parse_header, GZHeader, Flags};
-    use cvec::{Buf, CVec};
     use std::mem;
+    use cvec;
 
-    fn create_buf(raw: &[u8]) -> Buf {
-        let mut buffer = CVec::with_capacity(raw.len()).unwrap();
+    fn create_buf(raw: &[u8]) -> cvec::Buf {
+        let mut buffer = cvec::CVec::with_capacity(raw.len()).unwrap();
         for &byte in raw.iter() {
             buffer.push(byte);
         }
@@ -159,24 +173,84 @@ mod parse_header_tests {
     #[test]
     fn test_complex_header() {
         static HEADER_BYTES: &'static [u8] = &[
-              0x1f, 0x8b, 0x08, 0x08, 0x12, 0x34, 0x56, 0x78,
-              0x00, 0x07, 0x00, 0x04, 0x12, 0x34, 0x56, 0x78];
+            // magic header
+            0x1f, 0x8b,
+            // compression method
+            0x08,
+            // Flags
+            0x1f,
+            // time
+            0x12, 0x34, 0x56, 0x78,
+            // extra flags
+            0x00,
+            // OS
+            0x07,
+            // extra length + extra
+            0x00, 0x04, 0x12, 0x34, 0x56, 0x78,
+            // name
+            0x41, 0x42, 0x43, 0x44, 0x45, 0x00,
+            // comment
+            0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x00,
+            // CRC
+            0x00, 0x01];
 
         let buffer = create_buf(HEADER_BYTES);
         let results = parse_header(&buffer).unwrap();
         assert_eq!(results.compression_method, 8);
         assert_eq!(results.flags, Flags {
-            FTEXT: false, FHCRC: false, FNAME: false,
-            FEXTRA: true, FCOMMENT: false
+            FTEXT: true, FHCRC: true, FNAME: true,
+            FEXTRA: true, FCOMMENT: true
         });
         assert_eq!(results.mtime, 305419896);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
         assert_eq!(results.extra, Some(vec![0x12, 0x34, 0x56, 0x78]));
+        assert_eq!(results.fname, Some("ABCDE".to_string()));
+        assert_eq!(results.comment, Some("AAAAAA".to_string()));
+        assert_eq!(results.crc, Some(1));
+    }
+
+    #[test]
+    fn test_partial_header() {
+        static HEADER_BYTES: &'static [u8] = &[
+            // magic header
+            0x1f, 0x8b,
+            // compression method
+            0x08,
+            // Flags
+            0x17,
+            // time
+            0x12, 0x34, 0x56, 0x78,
+            // extra flags
+            0x00,
+            // OS
+            0x07,
+            // name
+            0x41, 0x42, 0x43, 0x44, 0x45, 0x00,
+            // comment
+            0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x00,
+            // CRC
+            0x00, 0x01];
+
+        let buffer = create_buf(HEADER_BYTES);
+        let results = parse_header(&buffer).unwrap();
+        assert_eq!(results.compression_method, 8);
+        assert_eq!(results.flags, Flags {
+            FTEXT: true, FHCRC: true, FNAME: true,
+            FEXTRA: false, FCOMMENT: true
+        });
+        assert_eq!(results.mtime, 305419896);
+        assert_eq!(results.extra_flags, 0);
+        assert_eq!(results.os, 7);
+        assert_eq!(results.extra, None);
+        assert_eq!(results.fname, Some("ABCDE".to_string()));
+        assert_eq!(results.comment, Some("AAAAAA".to_string()));
+        assert_eq!(results.crc, Some(1));
     }
 
     #[test]
     fn test_invalid_header() {
+        // Magic bytes are wrong
         static HEADER_BYTES: &'static [u8] = &[
               0x1f, 0x8c, 0x08, 0x00, 0x12, 0x34, 0x56, 0x78,
               0x00, 0x07];
