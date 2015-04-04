@@ -9,6 +9,17 @@ pub macro_rules! bail {
 }
 
 #[macro_export]
+pub macro_rules! if_opt {
+    ( $x:expr, $y:expr ) => {{
+        if ($x) {
+            Some($y)
+        } else {
+            None
+        }
+    }};
+}
+
+#[macro_export]
 pub macro_rules! try_bail {
     ($expr: expr) => (match $expr {
         Option::Some(v) => v,
