@@ -45,7 +45,7 @@ pub struct GZHeader {
     mtime: u32,
     extra_flags: u8,
     os: u8,
-    extra: Option<Vec<u8>>,
+    extra: Option<(String, Vec<u8>)>,
     fname: Option<String>,
     comment: Option<String>,
     crc: Option<u16>
@@ -99,8 +99,15 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     }
 }
 
-fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<Vec<u8>> {
+fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<(String, Vec<u8>)> {
     if_opt!(flags.FEXTRA, {
+        let mut id_bytes = Vec::with_capacity(2);
+        id_bytes.push(*try_opt!(iter.next()));
+        id_bytes.push(*try_opt!(iter.next()));
+        let id = match String::from_utf8(id_bytes) {
+            Ok(string) => string,
+            Err(..) => return None
+        };
         let mut len: u16 = (*try_opt!(iter.next()) as u16) << 8;
         len += (*try_opt!(iter.next()) as u16);
         let mut data = Vec::with_capacity(len as usize);
@@ -108,7 +115,7 @@ fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<Vec<u8>> {
             let byte: u8 = *try_opt!(iter.next());
             data.push(byte);
         }
-        data
+        (id, data)
     })
 }
 
@@ -187,8 +194,8 @@ mod parse_header_tests {
             0x00,
             // OS
             0x07,
-            // extra length + extra
-            0x00, 0x04, 0x12, 0x34, 0x56, 0x78,
+            // extra id + length + extra
+            0x41, 0x70, 0x00, 0x04, 0x12, 0x34, 0x56, 0x78,
             // name
             0x41, 0x42, 0x43, 0x44, 0x45, 0x00,
             // comment
@@ -206,7 +213,7 @@ mod parse_header_tests {
         assert_eq!(results.mtime, 305419896);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
-        assert_eq!(results.extra, Some(vec![0x12, 0x34, 0x56, 0x78]));
+        assert_eq!(results.extra, Some(("Ap".to_string(), vec![0x12, 0x34, 0x56, 0x78])));
         assert_eq!(results.fname, Some("ABCDE".to_string()));
         assert_eq!(results.comment, Some("AAAAAA".to_string()));
         assert_eq!(results.crc, Some(1));
