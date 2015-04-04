@@ -66,6 +66,8 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     // Check that the magic number is right
     if *try_opt!(iter.next()) == 0x1f && *try_opt!(iter.next()) == 0x8b {
         comp_method = *try_opt!(iter.next());
+        // We don't know how to decompress anything other than 8
+        if (comp_method != 8) { return None; }
         flags = Flags::new(*try_opt!(iter.next()));
         // We need to shift mtime because it's 4 bytes
         mtime = (*try_opt!(iter.next()) as u32) << 24;
@@ -251,10 +253,15 @@ mod parse_header_tests {
     #[test]
     fn test_invalid_header() {
         // Magic bytes are wrong
-        static HEADER_BYTES: &'static [u8] = &[
+        let HEADER_BYTES: &[u8] = &[
               0x1f, 0x8c, 0x08, 0x00, 0x12, 0x34, 0x56, 0x78,
               0x00, 0x07];
-
+        let buffer = create_buf(HEADER_BYTES);
+        assert_eq!(parse_header(&buffer), None);
+        // Wrong compression type
+        let HEADER_BYTES: &[u8] = &[
+              0x1f, 0x8b, 0x07, 0x00, 0x12, 0x34, 0x56, 0x78,
+              0x00, 0x07];
         let buffer = create_buf(HEADER_BYTES);
         assert_eq!(parse_header(&buffer), None);
     }
