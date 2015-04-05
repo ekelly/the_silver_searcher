@@ -153,8 +153,24 @@ impl<T> CVec<T> {
         }
     }
 
+    // gets sizeof(U) bytes, index into the CVec
+    pub fn get_wide<U>(&self, index: usize) -> Option<U> {
+        let size = mem::size_of::<U>();
+        let end = index + size;
+        if end > self.len {
+            None
+        } else {
+            let ptr = unsafe { self.get_raw_pointer_to_item(index) };
+            Some(unsafe { ptr::read(ptr as *const U)} )
+        }
+    }
+
     pub fn iter(&self) -> Iter<T> {
         Iter::new(self)
+    }
+
+    pub fn limit_iter(&self, index: usize, limit: usize) -> Iter<T> {
+        Iter::limit_new(self, index, limit)
     }
 
     pub unsafe fn get_raw_pointer_to_item(&self, index: usize) -> *const T {
@@ -211,6 +227,7 @@ impl<T: fmt::Show> fmt::Show for CVec<T> {
 pub struct Iter<'a, T: 'a> {
     cvec: &'a CVec<T>,
     index: usize,
+    limit: Option<usize>
 }
 
 impl<'a, T> Iter<'a, T> {
@@ -218,7 +235,31 @@ impl<'a, T> Iter<'a, T> {
         Iter {
             cvec: vec,
             index: 0,
+            limit: None,
         }
+    }
+
+    fn limit_new(vec: &'a CVec<T>, index: usize, limit: usize) -> Iter<'a, T> {
+        Iter {
+            cvec: vec,
+            index: index,
+            limit: Some(limit),
+        }
+    }
+
+    pub fn next_wide<F>(&mut self) -> Option<F> {
+        let index = self.index;
+        let size = mem::size_of::<F>();
+        self.index += size;
+        if self.limit.is_some() && self.index > self.limit.unwrap() {
+            None
+        } else {
+            self.cvec.get_wide::<F>(index)
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        self.index
     }
 }
 
@@ -229,7 +270,11 @@ impl<'a, T> Iterator for Iter<'a, T> {
     fn next(&mut self) -> Option<&'a T> {
         let index = self.index;
         self.index += 1;
-        self.cvec.get(index)
+        if self.limit.is_some() && self.index > self.limit.unwrap() {
+            None
+        } else {
+            self.cvec.get(index)
+        }
     }
 
     #[inline]

@@ -1,6 +1,11 @@
+extern crate core;
+
 use std::fmt::Show;
 use cvec;
 use cvec::{Iter, Buf, CVec};
+use self::core::num::Int;
+
+const GZ_MAGIC_BYTES: [u8; 2] = [0x1f, 0x8b];
 
 /*
 Flags:
@@ -27,8 +32,8 @@ impl Flags {
         Flags {
             FTEXT: flags & 1 != 0,
             FHCRC: flags & 2 != 0,
-            FNAME: flags & 4 != 0,
-            FEXTRA: flags & 8 != 0,
+            FEXTRA: flags & 4 != 0,
+            FNAME: flags & 8 != 0,
             FCOMMENT: flags & 16 != 0,
         }
     }
@@ -40,15 +45,16 @@ impl Flags {
 /// flag bit is set.
 #[derive(PartialEq, Show)]
 pub struct GZHeader {
-    compression_method: u8,
-    flags: Flags,
-    mtime: u32,
-    extra_flags: u8,
-    os: u8,
-    extra: Option<(String, Vec<u8>)>,
-    fname: Option<String>,
-    comment: Option<String>,
-    crc: Option<u16>
+    pub header_len: usize,
+    pub compression_method: u8,
+    pub flags: Flags,
+    pub mtime: u32,
+    pub extra_flags: u8,
+    pub os: u8,
+    pub extra: Option<(String, Vec<u8>)>,
+    pub fname: Option<String>,
+    pub comment: Option<String>,
+    pub crc: Option<u16>
 }
 
 /// Return a GZIP header structure representing the information
@@ -64,16 +70,14 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     let mut os: u8 = 0;
 
     // Check that the magic number is right
-    if *try_opt!(iter.next()) == 0x1f && *try_opt!(iter.next()) == 0x8b {
+    if (*try_opt!(iter.next()) == GZ_MAGIC_BYTES[0]
+        && *try_opt!(iter.next()) == GZ_MAGIC_BYTES[1]) {
         comp_method = *try_opt!(iter.next());
         // We don't know how to decompress anything other than 8
         if (comp_method != 8) { return None; }
         flags = Flags::new(*try_opt!(iter.next()));
         // We need to shift mtime because it's 4 bytes
-        mtime = (*try_opt!(iter.next()) as u32) << 24;
-        mtime += (*try_opt!(iter.next()) as u32) << 16;
-        mtime += (*try_opt!(iter.next()) as u32) << 8;
-        mtime += *try_opt!(iter.next()) as u32;
+        mtime = Int::from_le(try_opt!(iter.next_wide::<u32>()));
         extra_flags = *try_opt!(iter.next());
         os = *try_opt!(iter.next());
 
@@ -84,6 +88,7 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
         let crc = get_crc(&flags, &mut iter);
 
         Some(GZHeader {
+            header_len: iter.index(),
             compression_method: comp_method,
             flags: flags,
             mtime: mtime,
@@ -173,9 +178,10 @@ mod parse_header_tests {
             FTEXT: false, FHCRC: false, FNAME: false,
             FEXTRA: false, FCOMMENT: false
         });
-        assert_eq!(results.mtime, 305419896);
+        assert_eq!(results.mtime, 2018915346);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
+        assert_eq!(results.header_len, 10);
     }
 
 
@@ -210,13 +216,14 @@ mod parse_header_tests {
             FTEXT: true, FHCRC: true, FNAME: true,
             FEXTRA: true, FCOMMENT: true
         });
-        assert_eq!(results.mtime, 305419896);
+        assert_eq!(results.mtime, 2018915346);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
         assert_eq!(results.extra, Some(("Ap".to_string(), vec![0x12, 0x34, 0x56, 0x78])));
         assert_eq!(results.fname, Some("ABCDE".to_string()));
         assert_eq!(results.comment, Some("AAAAAA".to_string()));
         assert_eq!(results.crc, Some(1));
+        assert_eq!(results.header_len, 33);
     }
 
     #[test]
@@ -227,7 +234,7 @@ mod parse_header_tests {
             // compression method
             0x08,
             // Flags
-            0x17,
+            0x1b,
             // time
             0x12, 0x34, 0x56, 0x78,
             // extra flags
@@ -248,13 +255,14 @@ mod parse_header_tests {
             FTEXT: true, FHCRC: true, FNAME: true,
             FEXTRA: false, FCOMMENT: true
         });
-        assert_eq!(results.mtime, 305419896);
+        assert_eq!(results.mtime, 2018915346);
         assert_eq!(results.extra_flags, 0);
         assert_eq!(results.os, 7);
         assert_eq!(results.extra, None);
         assert_eq!(results.fname, Some("ABCDE".to_string()));
         assert_eq!(results.comment, Some("AAAAAA".to_string()));
         assert_eq!(results.crc, Some(1));
+        assert_eq!(results.header_len, 25);
     }
 
     #[test]
