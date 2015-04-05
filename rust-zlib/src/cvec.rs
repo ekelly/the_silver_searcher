@@ -9,6 +9,7 @@
 extern crate libc;
 extern crate core;
 
+use std::iter::Skip;
 use std::ops::Index;
 use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
 use libc::funcs::c95::stdlib::{malloc, realloc, free};
@@ -261,6 +262,16 @@ impl<'a, T> Iter<'a, T> {
     pub fn index(&self) -> usize {
         self.index
     }
+
+    #[inline]
+    fn skip(&self, n: usize) -> Iter<'a, T> {
+        Iter {
+            cvec: self.cvec,
+            index: self.index + n,
+            limit: self.limit
+        }
+    }
+
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
@@ -307,6 +318,15 @@ mod cvec_tests {
     fn test_iterator() {
         let mut expect = 1;
         for &el in setup().iter() {
+            assert_eq!(expect, el);
+            expect += 1;
+        }
+    }
+
+    #[test]
+    fn test_skip() {
+        let mut expect = 4;
+        for &el in setup().iter().skip(3) {
             assert_eq!(expect, el);
             expect += 1;
         }
