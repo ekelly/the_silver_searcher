@@ -15,6 +15,7 @@ mod macros;
 mod cvec;
 mod gz;
 mod header;
+mod crc32;
 
 /////////////////////////////////////////////////////////////////////
 //                    Constants & Macros                           //

@@ -1,8 +1,9 @@
-use cvec::{CVec, Buf};
+use cvec::{CVec, Buf, Iter};
 use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
 use std::ptr;
 
 use header;
+use crc32;
 
 // every gzip file is at least 10 bytes, if not, it's invalid
 const GZIP_MIN_LEN: usize = 40;
@@ -17,9 +18,9 @@ fn get_uncompressed_len(buffer: &Buf) -> usize {
     buffer.get_wide::<c_uint>(buffer.len() - GZIP_FILESIZE_OFFSET).unwrap() as usize
 }
 
-fn get_crc(buffer: &Buf) -> usize {
+fn get_crc(buffer: &Buf) -> c_uint {
     assert!(buffer.len() > GZIP_MIN_LEN);
-    buffer.get_wide::<c_uint>(buffer.len() - GZIP_CRC_OFFSET).unwrap() as usize
+    buffer.get_wide::<c_uint>(buffer.len() - GZIP_CRC_OFFSET).unwrap()
 }
 
 
@@ -37,6 +38,20 @@ pub fn decompress_gz(buffer: Buf) -> Option<Buf> {
     println!("crc: {}", crc);
     println!("header len: {}", header.header_len);
     println!("header: {:?}", header);
-    let out_buf = try_opt!(CVec::with_capacity(out_len));
+    let mut out_buf = try_opt!(CVec::with_capacity(out_len));
+    decompress_raw(buffer.limit_iter(header.header_len, buffer.len() - GZIP_FOOTER_LEN),
+                   &mut out_buf);
+    try_opt!(check_crc(&out_buf, crc));
     Some(out_buf)
+}
+
+fn decompress_raw(buffer: Iter<u8>, out_buf: &mut Buf) {
+}
+
+fn check_crc(buffer: &Buf, crc: c_uint) -> Option<()> {
+    if crc32::sum(buffer.iter()) == crc {
+        Some(())
+    } else {
+        None
+    }
 }
