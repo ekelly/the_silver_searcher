@@ -33,7 +33,7 @@ impl Crc32 {
     }
 }
 
-pub fn sum(mut buf: cvec::Iter<u8>) -> u32 {
+pub fn sum(buf: cvec::Iter<u8>) -> u32 {
     let mut c = Crc32::new();
     c.sum(buf)
 }

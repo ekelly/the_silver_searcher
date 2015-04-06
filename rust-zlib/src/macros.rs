@@ -1,6 +1,3 @@
-use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
-
-
 #[macro_export]
 pub macro_rules! bail {
     () => {
@@ -11,7 +8,7 @@ pub macro_rules! bail {
 #[macro_export]
 pub macro_rules! if_opt {
     ( $x:expr, $y:expr ) => {{
-        if ($x) {
+        if $x {
             Some($y)
         } else {
             None
@@ -32,6 +29,16 @@ pub macro_rules! try_opt {
     ($expr:expr) => (match $expr {
         Option::Some(v) => v,
         Option::None => {
+            return Option::None;
+        }
+    })
+}
+
+#[macro_export]
+pub macro_rules! try_ref_opt {
+    ($expr:expr) => (match $expr {
+        &Option::Some(ref v) => v,
+        &Option::None => {
             return Option::None;
         }
     })

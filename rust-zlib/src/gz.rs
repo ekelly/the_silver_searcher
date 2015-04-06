@@ -1,6 +1,5 @@
 use cvec::{CVec, Buf, Iter};
-use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
-use std::ptr;
+use libc::c_uint;
 
 use header;
 use crc32;

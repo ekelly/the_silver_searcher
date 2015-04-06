@@ -1,8 +1,7 @@
 extern crate core;
 
-use std::fmt::Show;
 use cvec;
-use cvec::{Iter, Buf, CVec};
+use cvec::{Iter, Buf};
 use self::core::num::Int;
 
 const GZ_MAGIC_BYTES: [u8; 2] = [0x1f, 0x8b];
@@ -63,18 +62,18 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     let mut iter = buffer.iter();
 
     // Header fields
-    let mut comp_method: u8 = 0;
+    let mut comp_method: u8;
     let mut flags: Flags;
-    let mut mtime: u32 = 0;
-    let mut extra_flags: u8 = 0;
-    let mut os: u8 = 0;
+    let mut mtime: u32;
+    let mut extra_flags: u8;
+    let mut os: u8;
 
     // Check that the magic number is right
     if (*try_opt!(iter.next()) == GZ_MAGIC_BYTES[0]
         && *try_opt!(iter.next()) == GZ_MAGIC_BYTES[1]) {
         comp_method = *try_opt!(iter.next());
         // We don't know how to decompress anything other than 8
-        if (comp_method != 8) { return None; }
+        if comp_method != 8 { return None; }
         flags = Flags::new(*try_opt!(iter.next()));
         // We need to shift mtime because it's 4 bytes
         mtime = Int::from_le(try_opt!(iter.next_wide::<u32>()));
@@ -114,9 +113,9 @@ fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<(String, Vec<u8
             Err(..) => return None
         };
         let mut len: u16 = (*try_opt!(iter.next()) as u16) << 8;
-        len += (*try_opt!(iter.next()) as u16);
+        len += *try_opt!(iter.next()) as u16;
         let mut data = Vec::with_capacity(len as usize);
-        for i in 0..(len as usize) {
+        for _ in 0..(len as usize) {
             let byte: u8 = *try_opt!(iter.next());
             data.push(byte);
         }

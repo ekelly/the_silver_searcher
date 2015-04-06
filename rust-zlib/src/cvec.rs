@@ -9,11 +9,9 @@
 extern crate libc;
 extern crate core;
 
-use std::iter::Skip;
 use std::ops::Index;
-use libc::{c_int, c_uint, c_ulong, c_char, c_uchar, c_void, size_t};
+use libc::{c_void, size_t};
 use libc::funcs::c95::stdlib::{malloc, realloc, free};
-use std::vec::Vec;
 use std::mem;
 use self::core::raw::Slice as RawSlice;
 use self::core::num::Int;
@@ -32,7 +30,6 @@ pub struct CVec<T> {
     mutable: bool,
 }
 
-#[feature(int_uint)]
 impl<T> CVec<T> {
     fn check_type_size() {
         if mem::size_of::<T>() == 0 {
@@ -179,6 +176,20 @@ impl<T> CVec<T> {
             ptr::null::<T>()
         } else {
             self.as_slice().as_ptr().offset(index as isize)
+        }
+    }
+}
+
+impl<T: Clone> CVec<T> {
+    pub fn copy_back_pointer(&mut self, distance: usize, length: usize) {
+        let mut back_ptr  = self.len - distance - 1;
+        let mut length = length;
+        let mut c;
+        while (length > 0) {
+            c = self[back_ptr].clone();
+            self.push(c);
+            back_ptr += 1;
+            length -= 1;
         }
     }
 }
