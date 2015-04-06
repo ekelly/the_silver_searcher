@@ -311,3 +311,33 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
     }
     Some(())
 }
+
+// inflate() is called with a GzBitReader starting at the head of the first block
+pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
+    let fixed_tree = try_opt!(build_fixed_huffman_tree());
+    let mut last_block = 0;
+    while { last_block == 0 } {
+        last_block = try_opt!(stream.next_bit());
+        let block_format = try_opt!(stream.read_bits(2));
+        match block_format {
+            0x00 => {
+                // uncompressed block type, not supported
+                return None;
+            },
+            0x01 => {
+                // fixed tree
+                try_opt!(inflate_huffman_codes(stream, &fixed_tree, None, out));
+            },
+            0x02 => {
+                // dynamic tree
+                let (literals_tree, distances_tree) = try_opt!(read_huffman_tree(stream));
+                try_opt!(inflate_huffman_codes(stream, &literals_tree, Some(&distances_tree), out));
+            }
+            _ => {
+                // unsupported block type
+                return None;
+            }
+        }
+    }
+    Some(())
+}

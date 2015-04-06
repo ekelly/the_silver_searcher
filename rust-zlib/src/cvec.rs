@@ -4,6 +4,9 @@
     C-style allocation and reallocation so we can safely construct it from a
     C pointer, or return it as a C pointer. This cannot safely be used on
     zero-sized types, and will panic if you try.
+
+    This CANNOT be used on types that implement Drop, or else we will leak memory
+    in the destructor.
 "]
 
 extern crate libc;
@@ -178,6 +181,15 @@ impl<T> CVec<T> {
             self.as_slice().as_ptr().offset(index as isize)
         }
     }
+
+    pub fn clear(&mut self) {
+        unsafe {
+            while self.len > 0 {
+                self.len -= 1;
+                ptr::read(self.get_unchecked(self.len));
+            }
+        }
+    }
 }
 
 impl<T: Clone> CVec<T> {
@@ -209,6 +221,7 @@ impl<T> Index<usize> for CVec<T> {
 impl<T> Drop for CVec<T> {
     fn drop(&mut self) {
         if self.mutable {
+            self.clear();
             unsafe { free(self.ptr as *mut c_void); }
         }
     }

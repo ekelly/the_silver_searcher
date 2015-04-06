@@ -3,6 +3,8 @@ use libc::c_uint;
 
 use header;
 use crc32;
+use gz_reader::GzBitReader;
+use huffman::inflate;
 
 // every gzip file is at least 10 bytes, if not, it's invalid
 const GZIP_MIN_LEN: usize = 40;
@@ -45,6 +47,14 @@ pub fn decompress_gz(buffer: Buf) -> Option<Buf> {
 }
 
 fn decompress_raw(buffer: Iter<u8>, out_buf: &mut Buf) {
+    let mut gz_reader = match GzBitReader::new(buffer) {
+        Some(g) => g,
+        None => { return; }
+    };
+    match inflate(&mut gz_reader, out_buf) {
+        Some(()) => {},
+        None => { out_buf.clear(); }
+    }
 }
 
 fn check_crc(buffer: &Buf, crc: c_uint) -> Option<()> {
