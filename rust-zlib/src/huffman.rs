@@ -13,7 +13,7 @@ static EXTRA_DIST_ADDEND: [usize; 26] = [
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Show)]
 struct HuffmanRange {
     end: u32,
     bit_length: u32,
@@ -25,11 +25,14 @@ impl HuffmanRange {
     }
 }
 
+#[derive(Show)]
 struct TreeNode {
     len: usize,
-    code: usize
+    bits: usize,
+    label: usize
 }
 
+#[derive(Show)]
 enum HuffmanNode {
     Node(Option<Box<HuffmanNode>>, Option<Box<HuffmanNode>>),
     Leaf(u32)
@@ -49,6 +52,23 @@ impl HuffmanNode {
             }
         }
     }
+
+    fn read_test(&self, bits: usize, len: usize) -> Option<u32> {
+        match self {
+            &Leaf(v) => {
+                assert!(len == 0);
+                Some(v)
+            },
+            &Node(ref left, ref right) => {
+                let target = match get_bit(bits, len) {
+                    0 => try_ref_opt!(left),
+                    1 => try_ref_opt!(right),
+                    _ => { panic!("Bit greater than one, no bueno."); }
+                };
+                target.read_test(bits, len - 1)
+            }
+        }
+    }
 }
 
 fn build_huffman_tree(ranges: &Vec<HuffmanRange>)
@@ -59,28 +79,31 @@ fn build_huffman_tree(ranges: &Vec<HuffmanRange>)
                                          .max()) as usize;
     let bl_count = count_bitlengths(ranges, max_bit_length);
     let mut next_code = compute_first_codes(&bl_count, max_bit_length);
-
     let table: Vec<TreeNode> = compute_code_table(&mut next_code, ranges);
-
     let tree: HuffmanNode = build_tree(&table);
     Some(tree)
 }
 
 // determine number of codes of each bit-length
+// returns a vector where the index corresponds to (bit_length - 1)
 fn count_bitlengths(ranges: &Vec<HuffmanRange>, max_bit_length: usize) -> Vec<u32> {
     // Vec of size max_bit_length + 1, initialized to 0
-    let mut bl_count: Vec<u32> = std::iter::repeat(0).take(max_bit_length + 1).collect();
+    let mut bl_count: Vec<u32> = std::iter::repeat(0).take(max_bit_length).collect();
 
     let mut range_iter = ranges.iter();
     let mut old_range: &HuffmanRange = range_iter.next().unwrap();
     {
-        let count_ref = bl_count.get_mut(old_range.bit_length as usize).unwrap();
-        *count_ref += old_range.end + 1;
+        if old_range.bit_length > 0 {
+            let count_ref = bl_count.get_mut((old_range.bit_length - 1) as usize).unwrap();
+            *count_ref += old_range.end + 1;
+        }
     }
 
     for range in range_iter {
-        let count_ref = bl_count.get_mut(range.bit_length as usize).unwrap();
-        *count_ref += range.end - old_range.end;
+        if range.bit_length > 0 {
+            let count_ref = bl_count.get_mut((range.bit_length - 1) as usize).unwrap();
+            *count_ref += range.end - old_range.end;
+        }
         old_range = range;
     }
     bl_count
@@ -88,12 +111,15 @@ fn count_bitlengths(ranges: &Vec<HuffmanRange>, max_bit_length: usize) -> Vec<u3
 
 // Figure out what the first code for each bit-length would be. This is one more than the last code
 // of the previous bit length, left-shifted once.
+// Returns a vector where the index corresponds to (bit_length - 1)
 fn compute_first_codes(bl_count: &Vec<u32>, max_bit_length: usize) -> Vec<u32> {
     let mut ret = Vec::new();
     let mut code: u32 = 0;
     // from the RFC
-    for bits in (1 .. max_bit_length + 1) {
-        code = ( code + bl_count[bits - 1] ) << 1;
+    for bits in (0 .. bl_count.len()) {
+        if bits > 1 {
+            code = ( code + bl_count[bits - 1] ) << 1;
+        }
         ret.push(if bl_count[bits] > 0 { code } else { 0 });
     }
     ret
@@ -110,15 +136,15 @@ fn compute_code_table(next_code: &mut Vec<u32>, ranges: &Vec<HuffmanRange>)
         if n > ranges[active_range].end {
             active_range += 1;
         }
-        let mut tree = TreeNode { len: 0, code: 0 };
+        let mut tree = TreeNode { len: 0, bits: 0, label: 0 };
         let bit_length = ranges[active_range].bit_length as usize;
         if bit_length > 0 {
             tree.len = bit_length;
-            tree.code = next_code[bit_length] as usize;
-            *next_code.get_mut(bit_length).unwrap() += 1;
-
+            tree.bits = next_code[bit_length - 1] as usize;
+            tree.label = n as usize;
+            *next_code.get_mut(bit_length - 1).unwrap() += 1;
+            ret.push(tree);
         }
-        ret.push(tree);
     }
     ret
 }
@@ -126,52 +152,51 @@ fn compute_code_table(next_code: &mut Vec<u32>, ranges: &Vec<HuffmanRange>)
 fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
     let mut root = Node(None, None);
     for (n, t_node) in code_table.iter().enumerate() {
-        let mut bits = t_node.code;
-        make_tree(&mut root, &mut bits, n)
+        let bits = t_node.bits;
+        let len = (t_node.len - 1) as isize;
+        let label = t_node.label;
+        make_tree(&mut root, bits, len, label);
     }
     root
 }
 
-fn make_tree(tree: &mut HuffmanNode, bits: &mut usize, value: usize) {
-    // if we've gotten here in this function, means we have a duplicate entry
-    // in our value table and we should probably explode
-    assert!(*bits != 0);
+fn make_tree(tree: &mut HuffmanNode, bits: usize, len: isize, label: usize) {
     match tree {
-        &mut Leaf(_) => { panic!("This shouldn't have happened."); },
+        &mut Leaf(_) => {
+            panic!("This shouldn't have happened.");
+        },
         &mut Node(ref mut left, ref mut right) => {
-            match pop_bit(bits) {
-                0 => { make_tree_side(left, bits, value); },
-                1 => { make_tree_side(right, bits, value); },
+            match get_bit(bits, len as usize) {
+                0 => { make_tree_side(left, bits, len - 1, label); },
+                1 => { make_tree_side(right, bits, len - 1, label); },
                 _ => { panic!("A bit was greater than 1, this is bad."); }
             }
         }
     }
 }
 
-fn make_tree_side(t_side: &mut Option<Box<HuffmanNode>>, bits: &mut usize, value: usize) {
+fn make_tree_side(t_side: &mut Option<Box<HuffmanNode>>, bits: usize, len: isize, value: usize) {
     match t_side {
-        &mut None => { *t_side = Some(box make_new_tree(bits, value)); },
-        &mut Some(ref mut t) => { make_tree(&mut **t, bits, value); },
+        &mut None => { *t_side = Some(box make_new_tree(bits, len, value)); },
+        &mut Some(ref mut t) => { make_tree(&mut **t, bits, len, value); },
     };
 }
 
-fn make_new_tree(bits: &mut usize, value: usize) -> HuffmanNode {
-    if *bits == 0 {
+fn make_new_tree(bits: usize, len: isize, value: usize) -> HuffmanNode {
+    if len < 0 {
         Leaf(value as u32)
     } else {
-        match pop_bit(bits) {
-            0 => Node(Some(box make_new_tree(bits, value)), None),
-            1 => Node(None, Some(box make_new_tree(bits, value))),
+        match get_bit(bits, len as usize) {
+            0 => Node(Some(box make_new_tree(bits, len - 1, value)), None),
+            1 => Node(None, Some(box make_new_tree(bits, len - 1, value))),
             _ => { panic!("A bit was greater than 1, this is bad."); }
         }
     }
 }
 
-// pops a bit off the front (LSB) of input and returns it
-fn pop_bit(input: &mut usize) -> usize {
-    let res = *input & 1;
-    *input >>= 1;
-    res
+// gets 'index' bit of input
+fn get_bit(input: usize, len: usize) -> usize {
+    if (input & (1 << len)) > 0 { 1 } else { 0 }
 }
 
 // Reads a huffman tree from a GzBitReader and returns two trees:
@@ -234,7 +259,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     // now alphabet lenths have been read, turn these into a range declaration and build
     // the final huffman code from it
     let mut literals_ranges = Vec::new();
-    for i in 0 .. (hlit + 258) as usize {
+    for i in 0 .. (hlit + 257) as usize {
         if i > 0 && alphabet[i] != alphabet[i-1] {
             literals_ranges.push(range.clone());
         }
@@ -264,7 +289,8 @@ fn build_fixed_huffman_tree() -> Option<HuffmanNode> {
                       HuffmanRange { end: 255, bit_length: 9},
                       HuffmanRange { end: 279, bit_length: 7},
                       HuffmanRange { end: 287, bit_length: 8}];
-    build_huffman_tree(&ranges)
+    //build_huffman_tree(&ranges)
+    Some(Leaf(0u32))
 }
 
 fn inflate_huffman_codes(stream: &mut GzBitReader,
