@@ -1,6 +1,5 @@
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
 
 #include "decompress.h"
 
@@ -15,97 +14,11 @@ const uint8_t LZMA_HEADER_SOMETIMES[3] = { 0x5D, 0x00, 0x00 };
 
 #ifdef HAVE_ZLIB_H
 #define ZLIB_CONST 1
-#include <zlib.h>
 
-/* Code in decompress_zlib from
- *
- * https://raw.github.com/madler/zlib/master/examples/zpipe.c
- *
- * zpipe.c: example of proper use of zlib's inflate() and deflate()
- *    Not copyrighted -- provided to the public domain
- *    Version 1.4  11 December 2005  Mark Adler 
- */
 static void *decompress_zlib(const void *buf, const int buf_len, const char *dir_full_path, int *new_buf_len) {
-  // TODO fix this back to how it was, remove stdio import
-  void *ret = decompress_zlib_to_heap(buf, buf_len, new_buf_len);
-  printf("%.*s\n", *new_buf_len, ret);
-  return ret;
-}
-static void *decompress_zlib2(const void *buf, const int buf_len,
-                             const char *dir_full_path, int *new_buf_len) {
-    int ret = 0;
-    unsigned char *result = NULL;
-    size_t result_size = 0;
-    size_t pagesize = 0;
-    z_stream stream;
-
-    log_debug("Decompressing zlib file %s", dir_full_path);
-
-    /* allocate inflate state */
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
-
-    /* Add 32 to allow zlib and gzip format detection */
-    if (inflateInit2(&stream, 32 + 15) != Z_OK) {
-        log_err("Unable to initialize zlib: %s", stream.msg);
-        goto error_out;
-    }
-
-    stream.avail_in = buf_len;
-    stream.next_in = buf;
-
-    pagesize = getpagesize();
-    result_size = ((buf_len + pagesize - 1) & ~(pagesize - 1));
-    do {
-        do {
-            unsigned char *tmp_result = result;
-            /* Double the buffer size and realloc */
-            result_size *= 2;
-            result = (unsigned char *)realloc(result, result_size * sizeof(unsigned char));
-            if (result == NULL) {
-                free(tmp_result);
-                log_err("Unable to allocate %d bytes to decompress file %s", result_size * sizeof(unsigned char), dir_full_path);
-                inflateEnd(&stream);
-                goto error_out;
-            }
-
-            stream.avail_out = result_size / 2;
-            stream.next_out = &result[stream.total_out];
-            ret = inflate(&stream, Z_SYNC_FLUSH);
-            log_debug("inflate ret = %d", ret);
-            switch (ret) {
-                case Z_STREAM_ERROR: {
-                    log_err("Found stream error while decompressing zlib stream: %s", stream.msg);
-                    inflateEnd(&stream);
-                    goto error_out;
-                }
-                case Z_NEED_DICT:
-                case Z_DATA_ERROR:
-                case Z_MEM_ERROR: {
-                    log_err("Found mem/data error while decompressing zlib stream: %s", stream.msg);
-                    inflateEnd(&stream);
-                    goto error_out;
-                }
-            }
-        } while (stream.avail_out == 0);
-    } while (ret == Z_OK);
-
-    *new_buf_len = stream.total_out;
-    inflateEnd(&stream);
-
-    if (ret == Z_STREAM_END) {
-        return result;
-    }
-
-error_out:
-    *new_buf_len = 0;
-    return NULL;
+  return decompress_zlib_to_heap(buf, buf_len, new_buf_len);
 }
 #endif
-
 
 static void *decompress_lzw(const void *buf, const int buf_len,
                             const char *dir_full_path, int *new_buf_len) {

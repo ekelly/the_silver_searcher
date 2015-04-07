@@ -34,11 +34,6 @@ pub fn decompress_gz(buffer: Buf) -> Option<Buf> {
     let out_len = get_uncompressed_len(&buffer);
     let crc = get_crc(&buffer);
     let header = try_opt!(header::parse_header(&buffer));
-    println!("in_len: {}", buffer.len());
-    println!("out_len: {}", out_len);
-    println!("crc: {}", crc);
-    println!("header len: {}", header.header_len);
-    println!("header: {:?}", header);
     let mut out_buf = try_opt!(CVec::with_capacity(out_len));
     decompress_raw(buffer.limit_iter(header.header_len, buffer.len() - GZIP_FOOTER_LEN),
                    &mut out_buf);

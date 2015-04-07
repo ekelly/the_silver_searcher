@@ -15,7 +15,7 @@ fi
 
 # build our rust
 cd rust-zlib
-cargo build
+cargo build --release
 cd -
 cp rust-zlib/src/rzlib.h src/
 cp rust-zlib/target/librzlib-* lib/
