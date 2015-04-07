@@ -248,7 +248,7 @@ impl<T: fmt::Show> fmt::Show for CVec<T> {
 //                            Iterator                             //
 /////////////////////////////////////////////////////////////////////
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Show)]
 pub struct Iter<'a, T: 'a> {
     cvec: &'a CVec<T>,
     index: usize,

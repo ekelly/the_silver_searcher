@@ -37,6 +37,7 @@ pub fn decompress_gz(buffer: Buf) -> Option<Buf> {
     let mut out_buf = try_opt!(CVec::with_capacity(out_len));
     decompress_raw(buffer.limit_iter(header.header_len, buffer.len() - GZIP_FOOTER_LEN),
                    &mut out_buf);
+    println!("{}", out_buf.len());
     try_opt!(check_crc(&out_buf, crc));
     Some(out_buf)
 }
@@ -53,6 +54,8 @@ fn decompress_raw(buffer: Iter<u8>, out_buf: &mut Buf) {
 }
 
 fn check_crc(buffer: &Buf, crc: c_uint) -> Option<()> {
+    println!("{}", crc32::sum(buffer.iter()));
+    println!("{}", crc);
     if crc32::sum(buffer.iter()) == crc {
         Some(())
     } else {

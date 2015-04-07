@@ -16,7 +16,7 @@ const uint8_t LZMA_HEADER_SOMETIMES[3] = { 0x5D, 0x00, 0x00 };
 #define ZLIB_CONST 1
 
 static void *decompress_zlib(const void *buf, const int buf_len, const char *dir_full_path, int *new_buf_len) {
-  return decompress_zlib_to_heap(buf, buf_len, new_buf_len);
+  return decompress_gzip_to_heap(buf, buf_len, new_buf_len);
 }
 #endif
 

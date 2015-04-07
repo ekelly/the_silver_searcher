@@ -44,7 +44,7 @@ const MAXCODES:  usize = MAXLCODES + MAXDCODES;
 /// Assumption: The Vec given to this function is a gzipped buffer
 
 #[no_mangle]
-pub extern "C" fn decompress_zlib_to_heap(buf: *const c_void,
+pub extern "C" fn decompress_gzip_to_heap(buf: *const c_void,
                                           buf_len: c_int,
                                           decompressed_len: *mut c_int)
         -> *mut c_void {

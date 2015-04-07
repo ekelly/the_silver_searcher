@@ -15,10 +15,11 @@ fi
 
 # build our rust
 cd rust-zlib
+cargo clean
 cargo build --release
 cd -
 cp rust-zlib/src/rzlib.h src/
-cp rust-zlib/target/librzlib-* lib/
+cp rust-zlib/target/release/librzlib-* lib/
 mv lib/librzlib-* lib/librzlib.a
 
 aclocal $AC_SEARCH_OPTS && \

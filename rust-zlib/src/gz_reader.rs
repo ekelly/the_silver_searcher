@@ -1,5 +1,6 @@
 use cvec::{CVec, Iter};
 
+#[derive(Show)]
 pub struct GzBitReader<'a> {
     iter: Iter<'a, u8>,
     buf: u8,
