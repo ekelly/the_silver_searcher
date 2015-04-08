@@ -444,7 +444,7 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
         -> Option<()> {
     println!("inflate codes");
     while let Some(code) = literals_root.read(stream) {
-        println!("{:?}", stream);
+        //println!("{:?}", stream);
         println!("looping");
         //println!("{:?}", literals_root);
         //return None;
@@ -467,21 +467,34 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
             // now, the length is followed by the distance back
             let mut dist = match distances_root {
                 None => {
-                    //println!("2");
+                    println!("Hardcoded distance");
                     try_opt!(stream.read_bits(5)) // hardcoded distance
                 },
                 Some(distance_tree) => {
-                    //println!("3");
+                    println!("Distance tree");
                     try_opt!(distance_tree.read(stream))
                 }
             };
+            println!("Distance: {}", dist);
 
             if dist > 3 {
                 //println!("4");
+
+                // *******************************************************
+                // PROBLEM IS IN THIS BLOCK
+
                 let extra_dist = try_opt!(stream.read_bits((dist - 2) / 2));
+                println!("Extra dist: {}, Addend: {}", extra_dist, EXTRA_DIST_ADDEND[(dist-4) as
+                         usize]);
                 dist = extra_dist + EXTRA_DIST_ADDEND[(dist - 4) as usize] as u32;
+                println!("New Distance: {}", dist);
+
+                // PROBLEM IS IN THIS BLOCK
+                // *******************************************************
+
             }
-            println!("about to copy back pointer");
+            println!("about to copy from back pointer. Dist: {}, Length: {}. CVec size: {}", dist,
+                    length, out.len());
             out.copy_back_pointer(dist as usize, length as usize);
         }
     }
