@@ -455,12 +455,12 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
             break;
         } else if code > 256 {
             let length = if code < 265 {
-                code - 254;
+                code - 254
             } else {
                 if code < 285 {
                     //println!("1");
                     let extra_bits = try_opt!(stream.read_bits((code - 261) / 4));
-                    extra_bits + EXTRA_LENGTH_ADDEND[(code - 265) as usize] as u32;
+                    extra_bits + EXTRA_LENGTH_ADDEND[(code - 265) as usize] as u32
                 } else { 256 } // is this necessary?
             };
 
@@ -468,11 +468,11 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
             let mut dist = match distances_root {
                 None => {
                     //println!("2");
-                    try_opt!(stream.read_bits(5)); // hardcoded distance
+                    try_opt!(stream.read_bits(5)) // hardcoded distance
                 },
                 Some(distance_tree) => {
                     //println!("3");
-                    try_opt!(distance_tree.read(stream));
+                    try_opt!(distance_tree.read(stream))
                 }
             };
 
