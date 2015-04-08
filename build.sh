@@ -18,6 +18,7 @@ cd rust-zlib
 cargo clean
 cargo build --release
 cd -
+mkdir lib
 cp rust-zlib/src/rzlib.h src/
 cp rust-zlib/target/release/librzlib-* lib/
 mv lib/librzlib-* lib/librzlib.a
