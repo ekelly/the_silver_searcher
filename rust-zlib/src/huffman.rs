@@ -4,6 +4,7 @@ use gz_reader::GzBitReader;
 use cvec::Buf;
 
 
+// These constants are defined by the GZIP standard
 static CODE_LENGTH_OFFSETS: [usize; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 static EXTRA_LENGTH_ADDEND: [usize; 20] = [
     11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227];
@@ -11,7 +12,9 @@ static EXTRA_DIST_ADDEND: [usize; 26] = [
     4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048,
     3072, 4096, 6144, 8192, 12288, 16384, 24576];
 
-
+/////////////////////////////////////////////////////////////////////
+//                        Structs                                  //
+/////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Show)]
 struct HuffmanRange {
@@ -25,7 +28,7 @@ impl HuffmanRange {
     }
 }
 
-#[derive(Show)]
+#[derive(Show, PartialEq)]
 struct TreeNode {
     len: usize,
     bits: usize,
@@ -71,9 +74,11 @@ impl HuffmanNode {
     }
 }
 
-fn build_huffman_tree(ranges: &Vec<HuffmanRange>)
-    -> Option<HuffmanNode>
-{
+/////////////////////////////////////////////////////////////////////
+//                     Building the tree                           //
+/////////////////////////////////////////////////////////////////////
+
+fn build_huffman_tree(ranges: &Vec<HuffmanRange>) -> Option<HuffmanNode> {
     let max_bit_length: usize = try_opt!(ranges.iter()
                                          .map(|x| x.bit_length)
                                          .max()) as usize;
@@ -84,8 +89,8 @@ fn build_huffman_tree(ranges: &Vec<HuffmanRange>)
     Some(tree)
 }
 
-// determine number of codes of each bit-length
-// returns a vector where the index corresponds to (bit_length - 1)
+/// determine number of codes of each bit-length
+/// returns a vector where the index corresponds to (bit_length - 1)
 fn count_bitlengths(ranges: &Vec<HuffmanRange>, max_bit_length: usize) -> Vec<u32> {
     // Vec of size max_bit_length + 1, initialized to 0
     let mut bl_count: Vec<u32> = std::iter::repeat(0).take(max_bit_length).collect();
@@ -109,9 +114,37 @@ fn count_bitlengths(ranges: &Vec<HuffmanRange>, max_bit_length: usize) -> Vec<u3
     bl_count
 }
 
-// Figure out what the first code for each bit-length would be. This is one more than the last code
-// of the previous bit length, left-shifted once.
-// Returns a vector where the index corresponds to (bit_length - 1)
+#[cfg(test)]
+mod count_bitlengths_tests {
+    use super::{HuffmanRange, count_bitlengths};
+
+    macro_rules! range {
+        ( $( ($x:expr, $y:expr) ),* ) => {{
+            let mut ranges = Vec::new();
+            $(
+                ranges.push(HuffmanRange {
+                    end: $x,
+                    bit_length: $y
+                });
+            )*
+            ranges
+        }};
+    }
+
+    #[test]
+    fn test_count_bl() {
+        let ranges = range![(1, 4), (4, 6), (6, 4),
+                            (14, 5), (18, 6), (21, 4),
+                            (26, 6)];
+        let expect = vec![0, 0, 0, 7, 8, 12];
+        assert_eq!(count_bitlengths(&ranges, 6), expect);
+    }
+}
+
+/// Figure out what the first code for each bit-length would be.
+/// This is one more than the last code of the previous bit length,
+/// left-shifted once. Returns a vector where the index corresponds
+/// to (bit_length - 1)
 fn compute_first_codes(bl_count: &Vec<u32>, max_bit_length: usize) -> Vec<u32> {
     let mut ret = Vec::new();
     let mut code: u32 = 0;
@@ -125,10 +158,21 @@ fn compute_first_codes(bl_count: &Vec<u32>, max_bit_length: usize) -> Vec<u32> {
     ret
 }
 
-// Assign codes to each symbol in the each range of a given bitlength
+#[cfg(test)]
+mod compute_first_codes_tests {
+    use super::compute_first_codes;
+
+    #[test]
+    fn test_compute_codes() {
+        let input = vec![0, 0, 0, 7, 8, 12];
+        let expect = vec![0, 0, 0, 0, 14, 44];
+        assert_eq!(compute_first_codes(&input, 6), expect);
+    }
+}
+
+/// Assign codes to each symbol in the each range of a given bitlength
 fn compute_code_table(next_code: &mut Vec<u32>, ranges: &Vec<HuffmanRange>)
-    -> Vec<TreeNode>
-{
+        -> Vec<TreeNode> {
     let mut ret = Vec::new();
     let mut active_range: usize = 0;
     let num_entries = ranges.get(ranges.len() - 1).unwrap().end;
@@ -149,6 +193,56 @@ fn compute_code_table(next_code: &mut Vec<u32>, ranges: &Vec<HuffmanRange>)
     ret
 }
 
+#[cfg(test)]
+mod compute_code_table_tests {
+    use super::{TreeNode, HuffmanRange, compute_code_table};
+
+    macro_rules! range {
+        ( $( ($x:expr, $y:expr) ),* ) => {{
+            let mut ranges = Vec::new();
+            $(
+                ranges.push(HuffmanRange {
+                    end: $x,
+                    bit_length: $y
+                });
+            )*
+            ranges
+        }};
+    }
+
+    macro_rules! nodes {
+        ( $( ($x:expr, $y:expr) ),* ) => {{
+            let mut nodes = Vec::new();
+            let mut count = 0;
+            $(
+                nodes.push(TreeNode {
+                    len: $x,
+                    bits: $y,
+                    label: count
+                });
+                count += 1;
+            )*
+            nodes
+        }};
+    }
+
+    #[test]
+    fn test_compute_code_table() {
+        let mut next_code = vec![0, 0, 0, 0, 14, 44];
+        let ranges = range![(1, 4), (4, 6), (6, 4),
+                            (14, 5), (18, 6), (21, 4),
+                            (26, 6)];
+        let expect = nodes![(4, 0), (4, 1), (6, 44), (6, 45), (6, 46),
+                            (4, 2), (4, 3), (5, 14), (5, 15), (5, 16),
+                            (5, 17), (5, 18), (5, 19), (5, 20), (5, 21),
+                            (6, 47), (6, 48), (6, 49), (6, 50), (4, 4),
+                            (4, 5), (4, 6), (6, 51), (6, 52), (6, 53),
+                            (6, 54), (6, 55)];
+        assert_eq!(compute_code_table(&mut next_code, &ranges), expect);
+    }
+}
+
+/// Create the Huffman tree from the code table
 fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
     let mut root = Node(None, None);
     for (n, t_node) in code_table.iter().enumerate() {
@@ -160,6 +254,7 @@ fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
     root
 }
 
+/// Helper function for build_tree
 fn make_tree(tree: &mut HuffmanNode, bits: usize, len: isize, label: usize) {
     match tree {
         &mut Leaf(_) => {
@@ -175,6 +270,7 @@ fn make_tree(tree: &mut HuffmanNode, bits: usize, len: isize, label: usize) {
     }
 }
 
+/// Make one side of the tree
 fn make_tree_side(t_side: &mut Option<Box<HuffmanNode>>, bits: usize, len: isize, value: usize) {
     match t_side {
         &mut None => { *t_side = Some(box make_new_tree(bits, len, value)); },
@@ -182,6 +278,7 @@ fn make_tree_side(t_side: &mut Option<Box<HuffmanNode>>, bits: usize, len: isize
     };
 }
 
+/// Create a new HuffmanNode based on the next set of bits to read
 fn make_new_tree(bits: usize, len: isize, value: usize) -> HuffmanNode {
     if len < 0 {
         Leaf(value as u32)
@@ -194,13 +291,13 @@ fn make_new_tree(bits: usize, len: isize, value: usize) -> HuffmanNode {
     }
 }
 
-// gets 'index' bit of input
+/// gets 'index' bit of input
 fn get_bit(input: usize, len: usize) -> usize {
     if (input & (1 << len)) > 0 { 1 } else { 0 }
 }
 
-// Reads a huffman tree from a GzBitReader and returns two trees:
-// the first is the literals tree, and the second is the distances tree
+/// Reads a huffman tree from a GzBitReader and returns two trees:
+/// the first is the literals tree, and the second is the distances tree
 fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNode)> {
     println!("read tree");
     let hlit = try_opt!(stream.read_bits(5));
@@ -223,6 +320,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
         range.bit_length = code_lengths[i];
     }
     code_length_ranges.push(range.clone());
+    // Code lengths tree
     let code_lengths_root = try_opt!(build_huffman_tree(&code_length_ranges));
 
     // now we read the literal/length alphabet, encoded with the huffman tree
@@ -285,22 +383,30 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     Some((literals_root, distances_root))
 }
 
+// Still something wrong here
+/// Create the fixed HuffmanTree (per the spec)
 fn build_fixed_huffman_tree() -> Option<HuffmanNode> {
     let ranges = vec![HuffmanRange { end: 143, bit_length: 8},
                       HuffmanRange { end: 255, bit_length: 9},
                       HuffmanRange { end: 279, bit_length: 7},
                       HuffmanRange { end: 287, bit_length: 8}];
-    //build_huffman_tree(&ranges)
-    Some(Leaf(0u32))
+    build_huffman_tree(&ranges)
 }
 
+/////////////////////////////////////////////////////////////////////
+//                    Inflating the data                           //
+/////////////////////////////////////////////////////////////////////
+
+/// Inflate the data segment based on the given Huffman Trees
+/// Effect: the output will be stored in out
+/// Success on a Some(()) result, failure on a None result
 fn inflate_huffman_codes(stream: &mut GzBitReader,
                          literals_root: &HuffmanNode,
                          distances_root: Option<&HuffmanNode>,
                          out: &mut Buf)
-    -> Option<()>
-{
+        -> Option<()> {
     println!("inflate codes");
+    // By the time we get here, it's already wrong
     while let Some(code) = literals_root.read(stream) {
         println!("{:?}", stream);
         println!("looping");
@@ -349,7 +455,9 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
     Some(())
 }
 
-// inflate() is called with a GzBitReader starting at the head of the first block
+/// Inflate the given compressed stream into the out buffer
+/// inflate() should be called with a GzBitReader starting at the head
+/// of the first block
 pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
     println!("inflate called");
     let fixed_tree = try_opt!(build_fixed_huffman_tree());

@@ -43,7 +43,7 @@ impl Flags {
 /// Whether or not they exist depends on whether it's associated
 /// flag bit is set.
 #[derive(PartialEq, Show)]
-pub struct GZHeader {
+struct GZHeader {
     pub header_len: usize,
     pub compression_method: u8,
     pub flags: Flags,
