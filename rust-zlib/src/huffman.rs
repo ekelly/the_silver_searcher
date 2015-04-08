@@ -3,7 +3,6 @@ use self::HuffmanNode::{Node, Leaf};
 use gz_reader::GzBitReader;
 use cvec::Buf;
 
-
 // These constants are defined by the GZIP standard
 static CODE_LENGTH_OFFSETS: [usize; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 static EXTRA_LENGTH_ADDEND: [usize; 20] = [
@@ -35,13 +34,14 @@ struct TreeNode {
     label: usize
 }
 
-#[derive(Show)]
+#[derive(Show, PartialEq)]
 enum HuffmanNode {
     Node(Option<Box<HuffmanNode>>, Option<Box<HuffmanNode>>),
     Leaf(u32)
 }
 
 impl HuffmanNode {
+    /// Traverse the Huffman Tree by reading sequential bytes
     fn read(&self, stream: &mut GzBitReader) -> Option<u32> {
         match self {
             &Leaf(v) => Some(v),
@@ -78,6 +78,7 @@ impl HuffmanNode {
 //                     Building the tree                           //
 /////////////////////////////////////////////////////////////////////
 
+/// Build the Huffman Tree from a set of Huffman Ranges
 fn build_huffman_tree(ranges: &Vec<HuffmanRange>) -> Option<HuffmanNode> {
     let max_bit_length: usize = try_opt!(ranges.iter()
                                          .map(|x| x.bit_length)
@@ -254,6 +255,30 @@ fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
     root
 }
 
+#[cfg(test)]
+mod build_tree_tests {
+    use super::{build_tree, TreeNode, HuffmanNode};
+    use super::HuffmanNode::{Node, Leaf};
+
+    #[test]
+    fn test_build_tree() {
+        let input = vec![TreeNode {
+            len: 4,
+            bits: 5, // 0101
+            label: 0
+        }];
+        assert_eq!(build_tree(&input), Node(
+            Some(box Node(
+                    None,
+                    Some(box Node(
+                            Some(box Node(None,
+                                      Some(box Leaf(0)))),
+                            None)))),
+            None));
+
+    }
+}
+
 /// Helper function for build_tree
 fn make_tree(tree: &mut HuffmanNode, bits: usize, len: isize, label: usize) {
     match tree {
@@ -292,8 +317,21 @@ fn make_new_tree(bits: usize, len: isize, value: usize) -> HuffmanNode {
 }
 
 /// gets 'index' bit of input
-fn get_bit(input: usize, len: usize) -> usize {
-    if (input & (1 << len)) > 0 { 1 } else { 0 }
+fn get_bit(input: usize, index: usize) -> usize {
+    if (input & (1 << index)) > 0 { 1 } else { 0 }
+}
+
+#[cfg(test)]
+mod get_bit_tests {
+    use super::get_bit;
+
+    #[test]
+    fn test_get_bit() {
+        assert_eq!(get_bit(0x3, 0), 1);
+        assert_eq!(get_bit(0x3, 1), 1);
+        assert_eq!(get_bit(0x3, 2), 0);
+        assert_eq!(get_bit(0x3, 3), 0);
+    }
 }
 
 /// Reads a huffman tree from a GzBitReader and returns two trees:
@@ -383,7 +421,6 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     Some((literals_root, distances_root))
 }
 
-// Still something wrong here
 /// Create the fixed HuffmanTree (per the spec)
 fn build_fixed_huffman_tree() -> Option<HuffmanNode> {
     let ranges = vec![HuffmanRange { end: 143, bit_length: 8},
@@ -406,40 +443,36 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
                          out: &mut Buf)
         -> Option<()> {
     println!("inflate codes");
-    // By the time we get here, it's already wrong
     while let Some(code) = literals_root.read(stream) {
         println!("{:?}", stream);
         println!("looping");
-        println!("{:?}", literals_root);
-        return None;
+        //println!("{:?}", literals_root);
+        //return None;
         assert!(code < 286);
         if code < 256 {
             out.push(code as u8);
         } else if code == 256 { //stop code
             break;
         } else if code > 256 {
-            let mut length;
-            let mut dist;
-            let mut extra_bits;
-            if code < 265 {
-                length = code - 254;
+            let length = if code < 265 {
+                code - 254;
             } else {
                 if code < 285 {
                     //println!("1");
-                    extra_bits = try_opt!(stream.read_bits((code - 261) / 4));
-                    length = extra_bits + EXTRA_LENGTH_ADDEND[(code - 265) as usize] as u32;
-                } else { length = 256 }; // is this necessary?
-            }
+                    let extra_bits = try_opt!(stream.read_bits((code - 261) / 4));
+                    extra_bits + EXTRA_LENGTH_ADDEND[(code - 265) as usize] as u32;
+                } else { 256 } // is this necessary?
+            };
 
             // now, the length is followed by the distance back
-            match distances_root {
+            let mut dist = match distances_root {
                 None => {
                     //println!("2");
-                    dist = try_opt!(stream.read_bits(5)); // hardcoded distance
+                    try_opt!(stream.read_bits(5)); // hardcoded distance
                 },
                 Some(distance_tree) => {
                     //println!("3");
-                    dist = try_opt!(distance_tree.read(stream));
+                    try_opt!(distance_tree.read(stream));
                 }
             };
 
@@ -448,6 +481,7 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
                 let extra_dist = try_opt!(stream.read_bits((dist - 2) / 2));
                 dist = extra_dist + EXTRA_DIST_ADDEND[(dist - 4) as usize] as u32;
             }
+            println!("about to copy back pointer");
             out.copy_back_pointer(dist as usize, length as usize);
         }
     }
@@ -475,10 +509,12 @@ pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
             },
             0x01 => {
                 // fixed tree
+                println!("Fixed tree");
                 try_opt!(inflate_huffman_codes(stream, &fixed_tree, None, out));
             },
             0x02 => {
                 // dynamic tree
+                println!("Dynamic tree");
                 let (literals_tree, distances_tree) = try_opt!(read_huffman_tree(stream));
                 try_opt!(inflate_huffman_codes(stream, &literals_tree, Some(&distances_tree), out));
             }

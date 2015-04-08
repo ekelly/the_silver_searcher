@@ -7,6 +7,7 @@ pub struct GzBitReader<'a> {
     mask: u8
 }
 
+/// Read the GZIP data bit by bit
 impl<'a> GzBitReader<'a> {
     pub fn new(mut iter: Iter<'a, u8>) -> Option<GzBitReader<'a>> {
         let starting_buf = try_opt!(iter.next());
@@ -28,8 +29,8 @@ impl<'a> GzBitReader<'a> {
         Some(bit)
     }
 
-    // reads bits in little-endian form, interprets them in big-endian
-    // as per gzip spec
+    /// reads bits in little-endian form, interprets them in big-endian
+    /// as per gzip spec
     pub fn read_bits(&mut self, count: u32) -> Option<u32> {
         let mut bit: u32;
         let mut value: u32 = 0;
