@@ -33,4 +33,4 @@ the_silver_searcher.spec
 # added by clowns
 **/target
 **/target/*
-
+lib/*

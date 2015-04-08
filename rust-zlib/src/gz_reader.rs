@@ -40,4 +40,15 @@ impl<'a> GzBitReader<'a> {
         }
         Some(value)
     }
+
+    pub fn read_bits_rev(&mut self, count: u32) -> Option<u32> {
+        let mut bit: u32;
+        let mut value: u32 = 0;
+        for _ in (0 .. count) {
+            value <<= 1;
+            bit = try_opt!(self.next_bit());
+            value |= bit;
+        }
+        Some(value)
+    }
 }

@@ -337,7 +337,6 @@ mod get_bit_tests {
 /// Reads a huffman tree from a GzBitReader and returns two trees:
 /// the first is the literals tree, and the second is the distances tree
 fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNode)> {
-    println!("read tree");
     let hlit = try_opt!(stream.read_bits(5));
     let hdist = try_opt!(stream.read_bits(5));
     let hclen = try_opt!(stream.read_bits(4)); // max of 15
@@ -475,18 +474,13 @@ fn inflate_huffman_codes2(stream: &mut GzBitReader,
             if dist > out.len() {
                 return None;
             }
-            println!("about to copy from back pointer. Dist: {}, Length: {}. CVec size: {}", dist,
-                    length, out.len());
             out.copy_back_pointer(dist as usize, length as usize);
         } else {
             break;
         }
     }
-    println!("done");
     let mut bytes = Vec::with_capacity(69);
     bytes.push_all(out.as_slice());
-    println!("Buffer bytes: {:?}", bytes);
-    println!("Buffer: {:?}", String::from_utf8(bytes));
     Some(())
 }
 
@@ -498,12 +492,7 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
                          distances_root: Option<&HuffmanNode>,
                          out: &mut Buf)
         -> Option<()> {
-    println!("inflate codes");
     while let Some(code) = literals_root.read(stream) {
-        println!("{:?}", stream);
-        println!("looping. Code: {}", code);
-        //println!("{:?}", literals_root);
-        //return None;
         if code >= 286 {
             return None;
         }
@@ -516,51 +505,29 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
                 code - 254
             } else {
                 if code < 285 {
-                    //println!("1");
                     let extra_bits = try_opt!(stream.read_bits((code - 261) / 4));
-                    extra_bits + EXTRA_LENGTH_ADDEND[((code - 265) + 1) as usize] as u32
-                } else {
-                    println!("Code is 258");
-                    258
-                } // is this necessary?
+                    extra_bits + EXTRA_LENGTH_ADDEND[((code - 266) + 1) as usize] as u32
+                } else { 258 }
             };
 
             // now, the length is followed by the distance back
             let mut dist = match distances_root {
                 None => {
-                    println!("Hardcoded distance");
-                    try_opt!(stream.read_bits(5)) // hardcoded distance
+                    try_opt!(stream.read_bits_rev(5)) // hardcoded distance
                 },
                 Some(distance_tree) => {
-                    println!("Distance tree");
                     try_opt!(distance_tree.read(stream))
                 }
             };
-            println!("Distance: {:b}", dist);
 
             if dist > 3 {
-                //println!("4");
-
-                // *******************************************************
-                // PROBLEM IS IN THIS BLOCK
-
-                // Lets say dist is 7. Extra dist must be 2 bits long
                 let extra_dist = try_opt!(stream.read_bits((dist - 2) / 2));
-                println!("Extra dist: {}, Addend: {}", extra_dist, EXTRA_DIST_ADDEND[(dist-4) as
-                         usize]);
                 dist = extra_dist + EXTRA_DIST_ADDEND[(dist - 4) as usize] as u32;
-                println!("New Distance: {}", dist);
-
-                // PROBLEM IS IN THIS BLOCK
-                // *******************************************************
 
             }
-            println!("about to copy from back pointer. Dist: {}, Length: {}. CVec size: {}", dist,
-                    length, out.len());
             out.copy_back_pointer(dist as usize, length as usize);
         }
     }
-    println!("done");
     Some(())
 }
 
@@ -568,14 +535,11 @@ fn inflate_huffman_codes(stream: &mut GzBitReader,
 /// inflate() should be called with a GzBitReader starting at the head
 /// of the first block
 pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
-    println!("inflate called");
     let fixed_tree = try_opt!(build_fixed_huffman_tree());
     let mut last_block = 0;
     while { last_block == 0 } {
-        println!("getting block");
         last_block = try_opt!(stream.next_bit());
         let block_format = try_opt!(stream.read_bits(2));
-        println!("got block");
         match block_format {
             0x00 => {
                 println!("uncompressed block");
@@ -584,14 +548,12 @@ pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
             },
             0x01 => {
                 // fixed tree
-                println!("Fixed tree");
-                try_opt!(inflate_huffman_codes2(stream, &fixed_tree, None, out));
+                try_opt!(inflate_huffman_codes(stream, &fixed_tree, None, out));
             },
             0x02 => {
                 // dynamic tree
-                println!("Dynamic tree");
                 let (literals_tree, distances_tree) = try_opt!(read_huffman_tree(stream));
-                try_opt!(inflate_huffman_codes2(stream, &literals_tree, Some(&distances_tree), out));
+                try_opt!(inflate_huffman_codes(stream, &literals_tree, Some(&distances_tree), out));
             }
             _ => {
                 println!("unsupported block");
@@ -600,6 +562,5 @@ pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
             }
         }
     }
-    println!("{}", out.len());
     Some(())
 }
