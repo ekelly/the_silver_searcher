@@ -1,5 +1,7 @@
 #[doc="
 
+    Module: cvec
+
     This is a slight modification of Vec from the standard library, but uses
     C-style allocation and reallocation so we can safely construct it from a
     C pointer, or return it as a C pointer. This cannot safely be used on
@@ -25,7 +27,6 @@ const DEFAULT_CVEC_CAPACITY: usize = 8;
 
 pub type Buf = CVec<u8>;
 
-
 pub struct CVec<T> {
     ptr: *mut T,
     len: usize,
@@ -34,18 +35,21 @@ pub struct CVec<T> {
 }
 
 impl<T> CVec<T> {
+
+    /// Verify that the T type has a size
     fn check_type_size() {
         if mem::size_of::<T>() == 0 {
             panic!("tried to use a CVec with a zero-size type");
         }
     }
 
+    /// Create a new CVec
     pub fn new() -> Option<CVec<T>> {
         CVec::<T>::with_capacity(DEFAULT_CVEC_CAPACITY)
     }
 
-    // Constructs a new CVec with given capacity
-    // returns None if the allocation fails
+    /// Constructs a new CVec with given capacity
+    /// returns None if the allocation fails
     pub fn with_capacity(capacity: usize) -> Option<CVec<T>> {
         let capacity = if capacity > 0 { capacity } else { DEFAULT_CVEC_CAPACITY } ;
         CVec::<T>::check_type_size();
@@ -66,9 +70,9 @@ impl<T> CVec<T> {
         }
     }
 
-    // Constructs a new CVec around a given buffer in memory, without copying
-    // If the input pointer is null or buf_size is 0, then None is returned
-    // The returned CVec CANNOT be modified!
+    /// Constructs a new CVec around a given buffer in memory, without copying
+    /// If the input pointer is null or buf_size is 0, then None is returned
+    /// The returned CVec CANNOT be modified!
     pub unsafe fn from_raw_buf(ptr: *const T, buf_size: usize) -> Option<CVec<T>> {
         if ptr.is_null() || buf_size == 0 {
             None
@@ -82,20 +86,21 @@ impl<T> CVec<T> {
         }
     }
 
-    // Converts this CVec to a raw pointer. The CVec cannot be used after this
-    // is called. The raw pointer must be freed by the caller.
+    /// Converts this CVec to a raw pointer. The CVec cannot be used after this
+    /// is called. The raw pointer must be freed by the caller.
     pub fn into_raw_buf(self) -> (*mut T, usize) {
         let ret = (self.ptr, self.len);
         unsafe { mem::forget(self); }
         ret
     }
 
+    /// Return the length of the CVec
     pub fn len(&self) -> usize {
         self.len
     }
 
-    // doubles our capacity!
-    // returns None if the allocation failed
+    /// Effect: doubles the CVec's capacity
+    /// returns None if the allocation failed
     pub fn double_capacity(&mut self) -> Option<()> {
         assert!(self.mutable);
         let old_size = self.cap * mem::size_of::<T>();
@@ -115,7 +120,8 @@ impl<T> CVec<T> {
         Some(())
     }
 
-    // returns None if we had to reallocate and it failed
+    /// Add a new element to the CVec
+    /// returns None if we had to reallocate and it failed
     pub fn push(&mut self, value: T) -> Option<()> {
         assert!(self.mutable);
         if self.len == self.cap {
@@ -130,6 +136,7 @@ impl<T> CVec<T> {
         Some(())
     }
 
+    /// Remove and return the last element of the CVec
     pub fn pop(&mut self) -> Option<T> {
         assert!(self.mutable);
         if self.len == 0 {
@@ -142,10 +149,14 @@ impl<T> CVec<T> {
         }
     }
 
+    /// Get a refrence to the element at the given index
+    /// Does not do any bounds checking!
     unsafe fn get_unchecked(&self, index: usize) -> &T {
         self.as_slice().get_unchecked(index)
     }
 
+    /// Get a reference to the element at the given index
+    /// Does bounds checking to ensure that index < len
     pub fn get(&self, index: usize) -> Option<&T> {
         if index < self.len {
             Some(unsafe { self.get_unchecked(index) })
@@ -154,7 +165,7 @@ impl<T> CVec<T> {
         }
     }
 
-    // gets sizeof(U) bytes, index into the CVec
+    /// gets sizeof(U) bytes at the given index into the CVec
     pub fn get_wide<U>(&self, index: usize) -> Option<U> {
         let size = mem::size_of::<U>();
         let end = index + size;
@@ -166,14 +177,17 @@ impl<T> CVec<T> {
         }
     }
 
+    /// Return an iterator over the CVec's contents
     pub fn iter(&self) -> Iter<T> {
         Iter::new(self)
     }
 
+    /// Return an iterator over a slice of the CVec
     pub fn limit_iter(&self, index: usize, limit: usize) -> Iter<T> {
         Iter::limit_new(self, index, limit)
     }
 
+    /// Get a raw pointer to the item at the given index
     pub unsafe fn get_raw_pointer_to_item(&self, index: usize) -> *const T {
         if index >= self.len {
             ptr::null::<T>()
@@ -182,6 +196,7 @@ impl<T> CVec<T> {
         }
     }
 
+    /// Clear the contents of the CVec
     pub fn clear(&mut self) {
         unsafe {
             while self.len > 0 {
@@ -193,11 +208,12 @@ impl<T> CVec<T> {
 }
 
 impl<T: Clone> CVec<T> {
+    /// Add to the CVec length bytes from distance bytes from the end
     pub fn copy_back_pointer(&mut self, distance: usize, length: usize) {
         let mut back_ptr  = self.len - distance - 1;
         let mut length = length;
         let mut c;
-        while (length > 0) {
+        while length > 0 {
             c = self[back_ptr].clone();
             self.push(c);
             back_ptr += 1;
@@ -295,7 +311,6 @@ impl<'a, T> Iter<'a, T> {
             limit: self.limit
         }
     }
-
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
@@ -324,17 +339,11 @@ impl<'a, T> Iterator for Iter<'a, T> {
 mod cvec_tests {
     use super::CVec;
 
-    macro_rules! add {
-        ( $y:expr, $( $x:expr ),* ) => {{
-            $(
-                $y.push($x);
-            )*
-        }};
-    }
-
     fn setup() -> CVec<u8> {
         let mut v: CVec<u8> = CVec::new().unwrap();
-        add!(v, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+        for i in 1..10 {
+            v.push(i);
+        }
         v
     }
 

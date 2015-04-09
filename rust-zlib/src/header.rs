@@ -1,3 +1,12 @@
+#[doc="
+
+    Module: header
+
+    This module handles parsing the header into a
+    structure representing the information contained
+    within it.
+
+"]
 extern crate core;
 
 use cvec;
@@ -18,6 +27,7 @@ bit 6   reserved
 bit 7   reserved
 */
 #[derive(PartialEq, Show)]
+#[allow(non_snake_case)]
 struct Flags {
     FTEXT: bool,
     FHCRC: bool,
@@ -69,8 +79,8 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     let mut os: u8;
 
     // Check that the magic number is right
-    if (*try_opt!(iter.next()) == GZ_MAGIC_BYTES[0]
-        && *try_opt!(iter.next()) == GZ_MAGIC_BYTES[1]) {
+    if *try_opt!(iter.next()) == GZ_MAGIC_BYTES[0]
+        && *try_opt!(iter.next()) == GZ_MAGIC_BYTES[1] {
         comp_method = *try_opt!(iter.next());
         // We don't know how to decompress anything other than 8
         if comp_method != 8 { return None; }
@@ -103,6 +113,7 @@ pub fn parse_header(buffer: &cvec::Buf) -> Option<GZHeader> {
     }
 }
 
+/// Get the values contained in the FEXTRA field of the header buffer
 fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<(String, Vec<u8>)> {
     if_opt!(flags.FEXTRA, {
         let mut id_bytes = Vec::with_capacity(2);
@@ -123,6 +134,7 @@ fn get_extra(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<(String, Vec<u8
     })
 }
 
+/// Get the String corresponding to the header flag that is given
 fn get_string(flag: bool, iter: &mut cvec::Iter<u8>) -> Option<String> {
     match if_opt!(flag, {
         let mut str_bytes = Vec::with_capacity(512);
@@ -142,6 +154,7 @@ fn get_string(flag: bool, iter: &mut cvec::Iter<u8>) -> Option<String> {
     }
 }
 
+/// Retrieve the optional CRC from the header
 fn get_crc(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<u16> {
     if_opt!(flags.FHCRC, {
         let mut crc: u16 = (*try_opt!(iter.next()) as u16) << 8;
@@ -152,8 +165,7 @@ fn get_crc(flags: &Flags, iter: &mut cvec::Iter<u8>) -> Option<u16> {
 
 #[cfg(test)]
 mod parse_header_tests {
-    use super::{parse_header, GZHeader, Flags};
-    use std::mem;
+    use super::{parse_header, Flags};
     use cvec;
 
     fn create_buf(raw: &[u8]) -> cvec::Buf {
@@ -267,16 +279,16 @@ mod parse_header_tests {
     #[test]
     fn test_invalid_header() {
         // Magic bytes are wrong
-        let HEADER_BYTES: &[u8] = &[
+        static HEADER_BYTES: &'static [u8] = &[
               0x1f, 0x8c, 0x08, 0x00, 0x12, 0x34, 0x56, 0x78,
               0x00, 0x07];
         let buffer = create_buf(HEADER_BYTES);
         assert_eq!(parse_header(&buffer), None);
         // Wrong compression type
-        let HEADER_BYTES: &[u8] = &[
+        static HEADER_BYTES2: &'static [u8] = &[
               0x1f, 0x8b, 0x07, 0x00, 0x12, 0x34, 0x56, 0x78,
               0x00, 0x07];
-        let buffer = create_buf(HEADER_BYTES);
+        let buffer = create_buf(HEADER_BYTES2);
         assert_eq!(parse_header(&buffer), None);
     }
 

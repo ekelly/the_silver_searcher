@@ -1,3 +1,11 @@
+#[doc="
+
+    Module: macros
+
+    This module contains some helpful macros used elsewhere
+    throughout the codebase.
+"]
+
 #[macro_export]
 pub macro_rules! bail {
     () => {

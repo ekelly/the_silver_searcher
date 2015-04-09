@@ -1,3 +1,13 @@
+#[doc="
+
+    Module: huffman
+
+    This module contains the bulk of the heavy lifting involved
+    in decompressing a gzip buffer. It parses the buffer to
+    generate the huffman trees embedded in it, and then uses
+    those huffman trees to decode the gzip into a buffer.
+
+"]
 use std;
 use self::HuffmanNode::{Node, Leaf};
 use gz_reader::GzBitReader;
@@ -55,23 +65,6 @@ impl HuffmanNode {
             }
         }
     }
-
-    fn read_test(&self, bits: usize, len: usize) -> Option<u32> {
-        match self {
-            &Leaf(v) => {
-                assert!(len == 0);
-                Some(v)
-            },
-            &Node(ref left, ref right) => {
-                let target = match get_bit(bits, len) {
-                    0 => try_ref_opt!(left),
-                    1 => try_ref_opt!(right),
-                    _ => { panic!("Bit greater than one, no bueno."); }
-                };
-                target.read_test(bits, len - 1)
-            }
-        }
-    }
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -84,7 +77,7 @@ fn build_huffman_tree(ranges: &Vec<HuffmanRange>) -> Option<HuffmanNode> {
                                          .map(|x| x.bit_length)
                                          .max()) as usize;
     let bl_count = count_bitlengths(ranges, max_bit_length);
-    let mut next_code = compute_first_codes(&bl_count, max_bit_length);
+    let mut next_code = compute_first_codes(&bl_count);
     let table: Vec<TreeNode> = compute_code_table(&mut next_code, ranges);
     let tree: HuffmanNode = build_tree(&table);
     Some(tree)
@@ -146,7 +139,7 @@ mod count_bitlengths_tests {
 /// This is one more than the last code of the previous bit length,
 /// left-shifted once. Returns a vector where the index corresponds
 /// to (bit_length - 1)
-fn compute_first_codes(bl_count: &Vec<u32>, max_bit_length: usize) -> Vec<u32> {
+fn compute_first_codes(bl_count: &Vec<u32>) -> Vec<u32> {
     let mut ret = Vec::new();
     let mut code: u32 = 0;
     // from the RFC
@@ -167,7 +160,7 @@ mod compute_first_codes_tests {
     fn test_compute_codes() {
         let input = vec![0, 0, 0, 7, 8, 12];
         let expect = vec![0, 0, 0, 0, 14, 44];
-        assert_eq!(compute_first_codes(&input, 6), expect);
+        assert_eq!(compute_first_codes(&input), expect);
     }
 }
 
@@ -214,14 +207,14 @@ mod compute_code_table_tests {
     macro_rules! nodes {
         ( $( ($x:expr, $y:expr) ),* ) => {{
             let mut nodes = Vec::new();
-            let mut count = 0;
+            let mut count = -1;
             $(
+                count += 1;
                 nodes.push(TreeNode {
                     len: $x,
                     bits: $y,
                     label: count
                 });
-                count += 1;
             )*
             nodes
         }};
@@ -246,7 +239,7 @@ mod compute_code_table_tests {
 /// Create the Huffman tree from the code table
 fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
     let mut root = Node(None, None);
-    for (n, t_node) in code_table.iter().enumerate() {
+    for t_node in code_table.iter() {
         let bits = t_node.bits;
         let len = (t_node.len - 1) as isize;
         let label = t_node.label;
@@ -257,7 +250,7 @@ fn build_tree(code_table: &Vec<TreeNode>) -> HuffmanNode {
 
 #[cfg(test)]
 mod build_tree_tests {
-    use super::{build_tree, TreeNode, HuffmanNode};
+    use super::{build_tree, TreeNode};
     use super::HuffmanNode::{Node, Leaf};
 
     #[test]
@@ -432,57 +425,6 @@ fn build_fixed_huffman_tree() -> Option<HuffmanNode> {
 /////////////////////////////////////////////////////////////////////
 //                    Inflating the data                           //
 /////////////////////////////////////////////////////////////////////
-
-/// Attempt 2 at inflating huffman codes
-fn inflate_huffman_codes2(stream: &mut GzBitReader,
-                          literals_root: &HuffmanNode,
-                          distances_root: Option<&HuffmanNode>,
-                          out: &mut Buf)
-        -> Option<()> {
-    static lens: [usize; 29] = [
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
-        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
-    static lext: [usize; 29] = [
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
-    static dists: [usize; 30] = [
-        1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
-        257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145,
-        8193, 12289, 16385, 24577];
-    static dext: [usize; 30] = [
-        0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
-        7, 7, 8, 8, 9, 9, 10, 10, 11, 11,
-        12, 12, 13, 13];
-
-    while let Some(mut code) = literals_root.read(stream) {
-        if code < 0 {
-            return None;
-        }
-        if code < 256 {
-            out.push(code as u8);
-        } else if code > 256 {
-            code -= 257;
-            if code >= 29 {
-                return None;
-            }
-            let length = lens[code as usize] +
-                try_opt!(stream.read_bits(lext[code as usize] as u32)) as usize;
-
-            // now, the length is followed by the distance back
-            let mut dist = dists[code as usize] +
-                try_opt!(stream.read_bits(dext[code as usize] as u32)) as usize;
-            if dist > out.len() {
-                return None;
-            }
-            out.copy_back_pointer(dist as usize, length as usize);
-        } else {
-            break;
-        }
-    }
-    let mut bytes = Vec::with_capacity(69);
-    bytes.push_all(out.as_slice());
-    Some(())
-}
 
 /// Inflate the data segment based on the given Huffman Trees
 /// Effect: the output will be stored in out

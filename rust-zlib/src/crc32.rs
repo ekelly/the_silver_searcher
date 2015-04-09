@@ -1,13 +1,22 @@
+#[doc="
+
+    Module: crc32
+
+    This module handles verifying the CRC in the GZip file
+
+"]
 use cvec;
 
 const IEEE: u32 = 0xedb88320;
 
+/// Cyclic Redundancy Check
 struct Crc32 {
     table: [u32; 256],
     value: u32
 }
 
 impl Crc32 {
+    /// Setup the CRC
     fn new() -> Crc32 {
         let mut c = Crc32 { table: [0; 256], value: 0xffffffff };
         for i in 0 .. 256 {
@@ -24,6 +33,7 @@ impl Crc32 {
         c
     }
 
+    /// Create the CRC for the given buffer
     fn sum(&mut self, mut buf: cvec::Iter<u8>) -> u32 {
         for &i in buf {
             self.value = self.table[((self.value ^ (i as u32)) & 0xFF) as usize] ^
@@ -33,6 +43,7 @@ impl Crc32 {
     }
 }
 
+/// Public interface for using the CRC
 pub fn sum(buf: cvec::Iter<u8>) -> u32 {
     let mut c = Crc32::new();
     c.sum(buf)
