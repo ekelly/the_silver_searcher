@@ -330,6 +330,7 @@ mod get_bit_tests {
 /// Reads a huffman tree from a GzBitReader and returns two trees:
 /// the first is the literals tree, and the second is the distances tree
 fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNode)> {
+    println!("Reading huffman tree");
     let hlit = try_opt!(stream.read_bits(5));
     let hdist = try_opt!(stream.read_bits(5));
     let hclen = try_opt!(stream.read_bits(4)); // max of 15
@@ -340,6 +341,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
         code_lengths[CODE_LENGTH_OFFSETS[i]] = try_opt!(stream.read_bits(3));
     }
 
+    println!("Making huffman ranges");
     // make these ranges for the huffman tree routine
     let mut range = HuffmanRange::new();
     for i in (0 .. 19) {
@@ -351,8 +353,12 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     }
     code_length_ranges.push(range.clone());
     // Code lengths tree
+    println!("About to make code lengths huffman tree");
+    println!("Code length ranges: {:?}", code_length_ranges);
     let code_lengths_root = try_opt!(build_huffman_tree(&code_length_ranges));
+    println!("Made code lengths huffman tree");
 
+    println!("Reading the literal/length alphabet");
     // now we read the literal/length alphabet, encoded with the huffman tree
     // we just built
     let mut i = 0;
@@ -385,6 +391,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
         }
     }
 
+    println!("Converting to range declarations");
     // now alphabet lenths have been read, turn these into a range declaration and build
     // the final huffman code from it
     let mut literals_ranges = Vec::new();
@@ -408,6 +415,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     }
     distances_ranges.push(range);
 
+    println!("About to build literals & distances huffman trees");
     let literals_root = try_opt!(build_huffman_tree(&literals_ranges));
     let distances_root = try_opt!(build_huffman_tree(&distances_ranges));
     Some((literals_root, distances_root))
@@ -494,7 +502,9 @@ pub fn inflate(stream: &mut GzBitReader, out: &mut Buf) -> Option<()> {
             },
             0x02 => {
                 // dynamic tree
+                println!("dynamic tree");
                 let (literals_tree, distances_tree) = try_opt!(read_huffman_tree(stream));
+                println!("dynamic trees built successfully");
                 try_opt!(inflate_huffman_codes(stream, &literals_tree, Some(&distances_tree), out));
             }
             _ => {
