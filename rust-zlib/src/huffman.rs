@@ -144,7 +144,7 @@ fn compute_first_codes(bl_count: &Vec<u32>) -> Vec<u32> {
     let mut code: u32 = 0;
     // from the RFC
     for bits in (0 .. bl_count.len()) {
-        if bits > 1 {
+        if bits > 0 {
             code = ( code + bl_count[bits - 1] ) << 1;
         }
         ret.push(if bl_count[bits] > 0 { code } else { 0 });
@@ -160,6 +160,13 @@ mod compute_first_codes_tests {
     fn test_compute_codes() {
         let input = vec![0, 0, 0, 7, 8, 12];
         let expect = vec![0, 0, 0, 0, 14, 44];
+        assert_eq!(compute_first_codes(&input), expect);
+    }
+
+    #[test]
+    fn test_1_bit_codes() {
+        let input = vec![1, 1, 1, 1, 0, 4];
+        let expect = vec![0, 2, 6, 14, 0, 60];
         assert_eq!(compute_first_codes(&input), expect);
     }
 }
