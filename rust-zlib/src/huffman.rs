@@ -270,6 +270,19 @@ mod build_tree_tests {
             None));
 
     }
+
+    fn setup_broken_tree() -> Vec<TreeNode> {
+        vec![TreeNode { len: 6, bits: 28, label: 1 },
+             TreeNode { len: 2, bits: 0, label: 6 },
+             TreeNode { len: 1, bits: 0, label: 7 }]
+    }
+
+    #[test]
+    fn test_broken_build_tree() {
+        let tree = setup_broken_tree();
+        assert_eq!(build_tree(&tree), Node(None, None));
+    }
+
 }
 
 /// Helper function for build_tree
