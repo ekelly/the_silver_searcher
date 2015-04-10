@@ -63,7 +63,7 @@ impl HuffmanNode {
 /////////////////////////////////////////////////////////////////////
 
 /// Build the Huffman Tree from a set of Huffman Ranges
-pub fn build_huffman_tree(ranges: &Vec<HuffmanRange>) -> Option<HuffmanNode> {
+pub fn build_huffman_tree(ranges: &[HuffmanRange]) -> Option<HuffmanNode> {
     let max_bit_length: usize = try_opt!(ranges.iter()
                                          .map(|x| x.bit_length)
                                          .max()) as usize;
@@ -76,7 +76,7 @@ pub fn build_huffman_tree(ranges: &Vec<HuffmanRange>) -> Option<HuffmanNode> {
 
 /// determine number of codes of each bit-length
 /// returns a vector where the index corresponds to (bit_length - 1)
-fn count_bitlengths(ranges: &Vec<HuffmanRange>, max_bit_length: usize) -> Vec<u32> {
+fn count_bitlengths(ranges: &[HuffmanRange], max_bit_length: usize) -> Vec<u32> {
     // Vec of size max_bit_length + 1, initialized to 0
     let mut bl_count: Vec<u32> = std::iter::repeat(0).take(max_bit_length).collect();
 
@@ -163,7 +163,7 @@ mod compute_first_codes_tests {
 }
 
 /// Assign codes to each symbol in the each range of a given bitlength
-fn compute_code_table(next_code: &mut Vec<u32>, ranges: &Vec<HuffmanRange>)
+fn compute_code_table(next_code: &mut Vec<u32>, ranges: &[HuffmanRange])
         -> Vec<TreeNode> {
     let mut ret = Vec::new();
     let mut active_range: usize = 0;

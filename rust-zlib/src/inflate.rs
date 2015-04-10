@@ -21,16 +21,22 @@ static EXTRA_LENGTH_ADDEND: [usize; 20] = [
 static EXTRA_DIST_ADDEND: [usize; 26] = [
     4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048,
     3072, 4096, 6144, 8192, 12288, 16384, 24576];
+static FIXED_TREE_RANGES: [HuffmanRange; 4] = [
+    HuffmanRange { end: 143, bit_length: 8},
+    HuffmanRange { end: 255, bit_length: 9},
+    HuffmanRange { end: 279, bit_length: 7},
+    HuffmanRange { end: 287, bit_length: 8}];
+
 
 /////////////////////////////////////////////////////////////////////
 //                  Tree Reading                                   //
 /////////////////////////////////////////////////////////////////////
-/// Reads a huffman tree from a GzBitReader and returns two trees:
-/// the first is the literals tree, and the second is the distances tree
-fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNode)> {
-    let hlit = try_opt!(stream.read_bits(5));
-    let hdist = try_opt!(stream.read_bits(5));
-    let hclen = try_opt!(stream.read_bits(4)); // max of 15
+
+/// Builds the first tree from a gzip block header, used to encode
+/// the following literals and distance tree
+fn build_code_length_tree(stream: &mut GzBitReader, hclen: u32)
+    -> Option<HuffmanNode>
+{
     let mut code_length_ranges = Vec::new();
     let mut code_lengths = [0u32; 19];
 
@@ -48,8 +54,17 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
         range.bit_length = code_lengths[i];
     }
     code_length_ranges.push(range.clone());
-    // Code lengths tree
-    let code_lengths_root = try_opt!(build_huffman_tree(&code_length_ranges));
+    build_huffman_tree(code_length_ranges.as_slice())
+}
+
+/// Reads a huffman tree from a GzBitReader and returns two trees:
+/// the first is the literals tree, and the second is the distances tree
+fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNode)> {
+    let hlit = try_opt!(stream.read_bits(5));
+    let hdist = try_opt!(stream.read_bits(5));
+    let hclen = try_opt!(stream.read_bits(4)); // max of 15
+
+    let code_lengths_root = try_opt!(build_code_length_tree(stream, hclen));
 
     // now we read the literal/length alphabet, encoded with the huffman tree
     // we just built
@@ -85,6 +100,7 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
 
     // now alphabet lenths have been read, turn these into a range declaration and build
     // the final huffman code from it
+    let mut range = HuffmanRange::new();
     let mut literals_ranges = Vec::new();
     for i in 0 .. (hlit + 257) as usize {
         if i > 0 && alphabet[i] != alphabet[i-1] {
@@ -106,18 +122,14 @@ fn read_huffman_tree(stream: &mut GzBitReader) -> Option<(HuffmanNode, HuffmanNo
     }
     distances_ranges.push(range);
 
-    let literals_root = try_opt!(build_huffman_tree(&literals_ranges));
-    let distances_root = try_opt!(build_huffman_tree(&distances_ranges));
+    let literals_root = try_opt!(build_huffman_tree(literals_ranges.as_slice()));
+    let distances_root = try_opt!(build_huffman_tree(distances_ranges.as_slice()));
     Some((literals_root, distances_root))
 }
 
 /// Create the fixed HuffmanTree (per the spec)
 fn build_fixed_huffman_tree() -> Option<HuffmanNode> {
-    let ranges = vec![HuffmanRange { end: 143, bit_length: 8},
-                      HuffmanRange { end: 255, bit_length: 9},
-                      HuffmanRange { end: 279, bit_length: 7},
-                      HuffmanRange { end: 287, bit_length: 8}];
-    build_huffman_tree(&ranges)
+    build_huffman_tree(&FIXED_TREE_RANGES)
 }
 
 /////////////////////////////////////////////////////////////////////
