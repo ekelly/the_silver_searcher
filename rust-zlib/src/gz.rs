@@ -13,7 +13,7 @@ use libc::c_uint;
 use header;
 use crc32;
 use gz_reader::GzBitReader;
-use huffman::inflate;
+use inflate::inflate;
 
 // every gzip file is at least 10 bytes, if not, it's invalid
 const GZIP_MIN_LEN: usize = 40;

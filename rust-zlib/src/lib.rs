@@ -29,6 +29,7 @@ mod cvec;
 mod gz;
 mod header;
 mod crc32;
+mod inflate;
 mod huffman;
 mod gz_reader;
 
