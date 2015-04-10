@@ -8,7 +8,6 @@
     those huffman trees to decode the gzip into a buffer.
 
 "]
-use std;
 use gz_reader::GzBitReader;
 use cvec::Buf;
 use huffman::{HuffmanNode, HuffmanRange};

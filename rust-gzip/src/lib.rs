@@ -1,5 +1,4 @@
 #![allow(unstable)]
-#![allow(dead_code)]
 #![feature(unsafe_destructor)]
 #![feature(box_syntax)]
 

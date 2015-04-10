@@ -10,7 +10,6 @@
 use std;
 use self::HuffmanNode::{Node, Leaf};
 use gz_reader::GzBitReader;
-use cvec::Buf;
 
 /////////////////////////////////////////////////////////////////////
 //                        Structs                                  //
@@ -122,7 +121,7 @@ mod count_bitlengths_tests {
                             (14, 5), (18, 6), (21, 4),
                             (26, 6)];
         let expect = vec![0, 0, 0, 7, 8, 12];
-        assert_eq!(count_bitlengths(&ranges, 6), expect);
+        assert_eq!(count_bitlengths(ranges.as_slice(), 6), expect);
     }
 }
 
@@ -230,7 +229,7 @@ mod compute_code_table_tests {
                             (6, 47), (6, 48), (6, 49), (6, 50), (4, 4),
                             (4, 5), (4, 6), (6, 51), (6, 52), (6, 53),
                             (6, 54), (6, 55)];
-        assert_eq!(compute_code_table(&mut next_code, &ranges), expect);
+        assert_eq!(compute_code_table(&mut next_code, ranges.as_slice()), expect);
     }
 }
 

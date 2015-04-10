@@ -44,6 +44,7 @@ impl<T> CVec<T> {
     }
 
     /// Create a new CVec
+    #[allow(dead_code)]
     pub fn new() -> Option<CVec<T>> {
         CVec::<T>::with_capacity(DEFAULT_CVEC_CAPACITY)
     }
@@ -137,6 +138,7 @@ impl<T> CVec<T> {
     }
 
     /// Remove and return the last element of the CVec
+    #[allow(dead_code)]
     pub fn pop(&mut self) -> Option<T> {
         assert!(self.mutable);
         if self.len == 0 {
@@ -304,7 +306,8 @@ impl<'a, T> Iter<'a, T> {
     }
 
     #[inline]
-    fn skip(&self, n: usize) -> Iter<'a, T> {
+    #[allow(dead_code)]
+    pub fn skip(&self, n: usize) -> Iter<'a, T> {
         Iter {
             cvec: self.cvec,
             index: self.index + n,
