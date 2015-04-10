@@ -14,14 +14,14 @@ then
 fi
 
 # build our rust
-cd rust-zlib
+cd rust-gzip
 cargo clean
 cargo build --release
 cd -
 mkdir lib
-cp rust-zlib/src/rzlib.h src/
-cp rust-zlib/target/release/librzlib-* lib/
-mv lib/librzlib-* lib/librzlib.a
+cp rust-gzip/src/rgzip.h src/
+cp rust-gzip/target/release/librgzip-* lib/
+mv lib/librgzip-* lib/librgzip.a
 
 aclocal $AC_SEARCH_OPTS && \
 autoconf && \

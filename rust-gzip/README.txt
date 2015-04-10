@@ -13,5 +13,5 @@ src/huffman.rs - huffman tree structures, and code to create them from
      ranges as defined in the gzip specification
 src/inflate.rs - gzip tree building and decompression
 src/crc32.rs - CRC32 implementation, to check correctness
-src/rzlib.rs - C header matching signature exported by lib.rs, to be
+src/rgzip.rs - C header matching signature exported by lib.rs, to be
      included in C applications using our library

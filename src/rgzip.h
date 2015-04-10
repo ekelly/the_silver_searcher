@@ -1,7 +1,7 @@
-// C header library matching rust-zlib
+// C header library matching rust-gzip
 
-#ifndef __RZLIB_H
-#define __RZLIB_H
+#ifndef __RGZIP_H
+#define __RGZIP_H
 
 void * decompress_gzip_to_heap(const void * buf,
     int buf_len,
